@@ -88,3 +88,13 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Decision:** `before_user_created` hook is `public.hook_require_invite` (invites table, case-insensitive match via lowercase-enforced emails). The migration and `supabase/config.toml` are committed, but the hook is NOT yet enabled on the hosted project: `supabase config push` would also change unrelated remote auth/pooler/storage settings (email confirmations, OTP length, MFA, pooler sizes, vector storage), so it was not run. Enable it in the dashboard: Authentication -> Hooks -> Before User Created -> Postgres -> `public.hook_require_invite`.
 - **Why:** config push overwrites everything config.toml declares, not just the hook.
 - **Who decided:** Claude's call, per controller ruling
+
+### Auth sessions under Cache Components
+- **Decision:** Keep `cacheComponents` and `partialPrefetching` on. Session reads sit behind `<Suspense>`; `getCurrentUser()` (`src/lib/auth.ts`) calls `connection()` before `getClaims()` because JWT verification compares expiry to the clock, which Cache Components flags during runtime prefetch. The proxy (`src/proxy.ts`) refreshes the session with `getClaims()` and is default-deny: everything except `/login` and `/auth/*` redirects signed-out users to `/login?next=<path>`. The `(app)` layout re-verifies with `getClaims()` (never `getSession()`).
+- **Why:** Follows the Next 16 "Authentication with Cache Components" guide and the Supabase SSR example without disabling caching; default-deny means new routes are protected automatically.
+- **Who decided:** Claude (Task 5)
+
+### Redirect targets and sign-out
+- **Decision:** Every `next` parameter goes through `safeNext()` (single leading `/`, no backslashes or control characters, same-origin after URL parsing). Sign-out is `POST /auth/signout` only. Login errors are fixed codes mapped to fixed copy; query text is never reflected.
+- **Why:** Prevents open redirects, cross-site sign-out via links/prefetch, and reflected content.
+- **Who decided:** Claude (Task 5)
