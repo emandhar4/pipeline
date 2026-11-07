@@ -23,8 +23,11 @@ export async function createTestUser(
 ): Promise<{ id: string; email: string; client: SupabaseClient }> {
   const admin = adminClient();
   const email = `pipeline-test+${tag}-${randomBytes(4).toString('hex')}@example.test`;
+  const invited = await admin.from('invites').insert({ email, note: 'integration test' });
+  if (invited.error) throw new Error(`invite insert failed: ${invited.error.message}`);
   const created = await admin.auth.admin.createUser({ email, email_confirm: true });
   if (created.error || !created.data.user) {
+    await admin.from('invites').delete().eq('email', email);
     throw new Error(`createUser failed: ${created.error?.message}`);
   }
   const id = created.data.user.id;
@@ -47,11 +50,19 @@ export async function createTestUser(
     return { id, email, client };
   } catch (err) {
     await admin.auth.admin.deleteUser(id).catch(() => undefined);
+    await admin.from('invites').delete().eq('email', email);
     throw err;
   }
 }
 
 export async function deleteTestUser(id: string): Promise<void> {
-  const { error } = await adminClient().auth.admin.deleteUser(id);
+  const admin = adminClient();
+  const { data } = await admin.auth.admin.getUserById(id);
+  const email = data.user?.email?.toLowerCase();
+  const { error } = await admin.auth.admin.deleteUser(id);
   if (error) throw new Error(`deleteUser failed: ${error.message}`);
+  if (email) {
+    const res = await admin.from('invites').delete().eq('email', email);
+    if (res.error) throw new Error(`delete invite failed: ${res.error.message}`);
+  }
 }

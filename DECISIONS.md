@@ -83,3 +83,8 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Decision:** Stays in "testing" mode (up to 100 named test users; fits invite-only). Drive uses the narrow file-only scope (`drive.file`) and lands in Phase 6 with the resume engine. Gmail/Calendar in Phase 7 use read-only scopes. Public verification is out of scope for v1.
 - **Why:** Verification is slow and unnecessary for an invite-only audience.
 - **Who decided:** Claude's call
+
+### Invite-only signup hook
+- **Decision:** `before_user_created` hook is `public.hook_require_invite` (invites table, case-insensitive match via lowercase-enforced emails). The migration and `supabase/config.toml` are committed, but the hook is NOT yet enabled on the hosted project: `supabase config push` would also change unrelated remote auth/pooler/storage settings (email confirmations, OTP length, MFA, pooler sizes, vector storage), so it was not run. Enable it in the dashboard: Authentication -> Hooks -> Before User Created -> Postgres -> `public.hook_require_invite`.
+- **Why:** config push overwrites everything config.toml declares, not just the hook.
+- **Who decided:** Claude's call, per controller ruling
