@@ -47,8 +47,8 @@ describe('global tables, matches and AI queue', () => {
     const admin = adminClient();
     // Deleting users cascades their matches and jobs; postings must go before companies.
     const userJobs: Promise<unknown>[] = [];
-    if (a) userJobs.push(deleteTestUser(a.id));
-    if (b) userJobs.push(deleteTestUser(b.id));
+    if (a) userJobs.push(deleteTestUser(a.id, a.email));
+    if (b) userJobs.push(deleteTestUser(b.id, b.email));
     const failed = (await Promise.allSettled(userJobs)).filter((r) => r.status === 'rejected');
     const errors: unknown[] = failed.map((f) => (f as PromiseRejectedResult).reason);
     for (const id of postingIds) {

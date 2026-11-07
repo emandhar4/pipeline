@@ -22,13 +22,17 @@ export async function createTestUser(
   tag: string,
 ): Promise<{ id: string; email: string; client: SupabaseClient }> {
   const admin = adminClient();
-  const email = `pipeline-test+${tag}-${randomBytes(4).toString('hex')}@example.test`;
+  const email =
+    `pipeline-test+${tag}-${randomBytes(4).toString('hex')}@example.test`.toLowerCase();
   const invited = await admin.from('invites').insert({ email, note: 'integration test' });
   if (invited.error) throw new Error(`invite insert failed: ${invited.error.message}`);
   const created = await admin.auth.admin.createUser({ email, email_confirm: true });
   if (created.error || !created.data.user) {
-    await admin.from('invites').delete().eq('email', email);
-    throw new Error(`createUser failed: ${created.error?.message}`);
+    const cleanup = await admin.from('invites').delete().eq('email', email);
+    throw new Error(
+      `createUser failed: ${created.error?.message}` +
+        (cleanup.error ? `; invite cleanup failed: ${cleanup.error.message}` : ''),
+    );
   }
   const id = created.data.user.id;
 
@@ -49,20 +53,22 @@ export async function createTestUser(
     if (verified.error) throw new Error(`verifyOtp failed: ${verified.error.message}`);
     return { id, email, client };
   } catch (err) {
-    await admin.auth.admin.deleteUser(id).catch(() => undefined);
-    await admin.from('invites').delete().eq('email', email);
-    throw err;
+    const problems: unknown[] = [err];
+    const del = await admin.auth.admin.deleteUser(id).catch((e: unknown) => ({ error: e }));
+    if (del.error) problems.push(new Error(`cleanup deleteUser failed: ${String(del.error)}`));
+    const inv = await admin.from('invites').delete().eq('email', email);
+    if (inv.error) problems.push(new Error(`cleanup invite delete failed: ${inv.error.message}`));
+    if (problems.length === 1) throw err;
+    throw new AggregateError(problems, 'createTestUser failed and cleanup was incomplete');
   }
 }
 
-export async function deleteTestUser(id: string): Promise<void> {
+export async function deleteTestUser(id: string, email: string): Promise<void> {
   const admin = adminClient();
-  const { data } = await admin.auth.admin.getUserById(id);
-  const email = data.user?.email?.toLowerCase();
-  const { error } = await admin.auth.admin.deleteUser(id);
-  if (error) throw new Error(`deleteUser failed: ${error.message}`);
-  if (email) {
-    const res = await admin.from('invites').delete().eq('email', email);
-    if (res.error) throw new Error(`delete invite failed: ${res.error.message}`);
-  }
+  const errors: Error[] = [];
+  const del = await admin.auth.admin.deleteUser(id);
+  if (del.error) errors.push(new Error(`deleteUser failed: ${del.error.message}`));
+  const inv = await admin.from('invites').delete().eq('email', email.toLowerCase());
+  if (inv.error) errors.push(new Error(`delete invite failed: ${inv.error.message}`));
+  if (errors.length) throw new AggregateError(errors, 'deleteTestUser failed');
 }

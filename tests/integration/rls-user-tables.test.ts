@@ -20,8 +20,8 @@ describe('per-user tables RLS', () => {
       const { error } = await admin.from('resume_rules').delete().eq('id', id);
       if (error) throw new Error(`resume_rules cleanup failed: ${error.message}`);
     });
-    if (a) jobs.push(deleteTestUser(a.id));
-    if (b) jobs.push(deleteTestUser(b.id));
+    if (a) jobs.push(deleteTestUser(a.id, a.email));
+    if (b) jobs.push(deleteTestUser(b.id, b.email));
     const failed = (await Promise.allSettled(jobs)).filter((r) => r.status === 'rejected');
     if (failed.length) throw new AggregateError(failed.map((f) => f.reason), 'cleanup failed');
   });
