@@ -98,3 +98,13 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Decision:** Every `next` parameter goes through `safeNext()` (single leading `/`, no backslashes or control characters, same-origin after URL parsing). Sign-out is `POST /auth/signout` only. Login errors are fixed codes mapped to fixed copy; query text is never reflected.
 - **Why:** Prevents open redirects, cross-site sign-out via links/prefetch, and reflected content.
 - **Who decided:** Claude (Task 5)
+
+### CI design
+- **Decision:** `.github/workflows/ci.yml` runs on every push and on pull requests to `main`: lint, typecheck, unit tests (`tests/unit`), build, bundle secret check. Build-time `NEXT_PUBLIC_*` vars are placeholders in the workflow (env validation needs well-formed values, not real ones). Integration tests are a separate job that runs only on `push` to `main` with repo secrets, since they hit the hosted project and PRs must not depend on secrets.
+- **Why:** Fast feedback on every branch without exposing secrets to PR runs or touching the hosted database from feature branches.
+- **Who decided:** Claude's call, per controller ruling
+
+### Client bundle secret check
+- **Decision:** `scripts/check-bundle-secrets.mjs` fails CI if any file in `.next/static` contains the name `SUPABASE_SECRET_KEY` or (when set) its value. Verified by temporarily referencing the secret in a client component (exit 1), then reverting.
+- **Why:** A cheap last-line guard against the service key reaching the browser, beyond `server-only` imports.
+- **Who decided:** Claude (Task 7)
