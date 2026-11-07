@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "db:types": "supabase gen types typescript --remote > src/lib/database.types.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
