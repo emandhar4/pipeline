@@ -29,21 +29,26 @@ export async function createTestUser(
   }
   const id = created.data.user.id;
 
-  const link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
-  if (link.error || !link.data.properties) {
-    throw new Error(`generateLink failed: ${link.error?.message}`);
+  try {
+    const link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+    if (link.error || !link.data.properties) {
+      throw new Error(`generateLink failed: ${link.error?.message}`);
+    }
+    const client = createClient(
+      env('NEXT_PUBLIC_SUPABASE_URL'),
+      env('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
+      noSession,
+    );
+    const verified = await client.auth.verifyOtp({
+      token_hash: link.data.properties.hashed_token,
+      type: 'magiclink',
+    });
+    if (verified.error) throw new Error(`verifyOtp failed: ${verified.error.message}`);
+    return { id, email, client };
+  } catch (err) {
+    await admin.auth.admin.deleteUser(id).catch(() => undefined);
+    throw err;
   }
-  const client = createClient(
-    env('NEXT_PUBLIC_SUPABASE_URL'),
-    env('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
-    noSession,
-  );
-  const verified = await client.auth.verifyOtp({
-    token_hash: link.data.properties.hashed_token,
-    type: 'magiclink',
-  });
-  if (verified.error) throw new Error(`verifyOtp failed: ${verified.error.message}`);
-  return { id, email, client };
 }
 
 export async function deleteTestUser(id: string): Promise<void> {

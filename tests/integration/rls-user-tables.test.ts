@@ -16,9 +16,14 @@ describe('per-user tables RLS', () => {
 
   afterAll(async () => {
     const admin = adminClient();
-    for (const id of resumeRuleIds) await admin.from('resume_rules').delete().eq('id', id);
-    if (a) await deleteTestUser(a.id);
-    if (b) await deleteTestUser(b.id);
+    const jobs: Promise<unknown>[] = resumeRuleIds.map(async (id) => {
+      const { error } = await admin.from('resume_rules').delete().eq('id', id);
+      if (error) throw new Error(`resume_rules cleanup failed: ${error.message}`);
+    });
+    if (a) jobs.push(deleteTestUser(a.id));
+    if (b) jobs.push(deleteTestUser(b.id));
+    const failed = (await Promise.allSettled(jobs)).filter((r) => r.status === 'rejected');
+    if (failed.length) throw new AggregateError(failed.map((f) => f.reason), 'cleanup failed');
   });
 
   async function expectIsolated(table: string, row: Record<string, unknown>, change: Record<string, unknown>) {
@@ -63,7 +68,7 @@ describe('per-user tables RLS', () => {
     const admin = adminClient();
     const ins = await admin
       .from('resume_rules')
-      .insert({ user_id: null, rules: { test: true }, version: 1 })
+      .insert({ user_id: null, rules: { __test__: true }, version: 1 })
       .select()
       .single();
     expect(ins.error).toBeNull();
@@ -82,15 +87,8 @@ describe('per-user tables RLS', () => {
 
   it('backfill covered pre-existing users', async () => {
     const admin: SupabaseClient = adminClient();
-    const users: string[] = [];
-    for (let page = 1; ; page++) {
-      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-      expect(error).toBeNull();
-      users.push(...data.users.map((u) => u.id));
-      if (data.users.length < 200) break;
-    }
-    const { data } = await admin.from('profiles').select('user_id');
-    const have = new Set((data ?? []).map((p) => p.user_id));
-    expect(users.filter((id) => !have.has(id))).toHaveLength(0);
+    const { data, error } = await admin.rpc('count_users_without_profile');
+    expect(error).toBeNull();
+    expect(Number(data)).toBe(0);
   });
 });
