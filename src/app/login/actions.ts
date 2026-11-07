@@ -26,6 +26,7 @@ export async function signInWithGoogle(formData: FormData): Promise<void> {
     options: { redirectTo: callbackUrl(next) },
   });
   if (error || !data.url) {
+    console.error('[login] signInWithOAuth failed', { code: error?.code, message: error?.message });
     redirect(`/login?error=oauth&next=${encodeURIComponent(next)}`);
   }
   redirect(data.url);
@@ -48,6 +49,7 @@ export async function sendEmailLink(
     options: { shouldCreateUser: true, emailRedirectTo: callbackUrl(next) },
   });
   if (error) {
+    console.error('[login] signInWithOtp failed', { code: error.code, message: error.message });
     if (isInviteRejection(error.message)) return { status: 'error', message: INVITE_ONLY_MESSAGE };
     return { status: 'error', message: 'Could not send the link. Try again in a minute.' };
   }

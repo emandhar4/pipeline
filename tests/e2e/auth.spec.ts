@@ -60,7 +60,7 @@ test('sign out returns to login', async ({ page }) => {
 
 test('next cannot redirect off-site', async ({ page, baseURL }) => {
   const user = await newUser('e2e-next');
-  for (const next of ['https://evil.com', '//evil.com', '/\\evil.com']) {
+  for (const next of ['https://evil.com', '//evil.com', '/\\evil.com', '/.//evil.com']) {
     await page.context().clearCookies();
     await signIn(page, user.email, next);
     expect(page.url().startsWith(baseURL!)).toBe(true);

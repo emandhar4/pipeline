@@ -3,14 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { safeNext } from '@/lib/safe-next';
 import { createClient } from '@/lib/supabase/server';
 
-const OTP_TYPES: readonly EmailOtpType[] = [
-  'magiclink',
-  'email',
-  'signup',
-  'invite',
-  'recovery',
-  'email_change',
-];
+// Only the email sign-in link types this app issues. No passwords, so no recovery.
+const OTP_TYPES: readonly EmailOtpType[] = ['magiclink', 'email'];
 
 function isOtpType(value: string | null): value is EmailOtpType {
   return value !== null && (OTP_TYPES as readonly string[]).includes(value);
@@ -27,6 +21,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
     if (!error) return NextResponse.redirect(new URL(next, request.url));
+    console.error('[auth/confirm] verifyOtp failed', { code: error.code, message: error.message });
   }
 
   const url = new URL('/login', request.url);

@@ -11,6 +11,11 @@ describe('safeNext', () => {
     ['\\\\evil.com', '/dashboard'],
     ['/\t/evil.com', '/dashboard'],
     ['javascript:alert(1)', '/dashboard'],
+    ['/.//evil.com', '/dashboard'],
+    ['/..//evil.com', '/dashboard'],
+    ['/%2e//evil.com', '/dashboard'],
+    ['/a/..//evil.com', '/dashboard'],
+    ['/a/../b', '/b'],
     ['dashboard', '/dashboard'],
     ['', '/dashboard'],
   ])('safeNext(%j) -> %j', (raw, expected) => {

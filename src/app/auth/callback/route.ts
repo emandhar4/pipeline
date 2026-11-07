@@ -16,12 +16,24 @@ export async function GET(request: NextRequest) {
   };
 
   const providerError = searchParams.get('error_description') ?? searchParams.get('error');
-  if (providerError) return loginError(isInviteRejection(providerError) ? 'invite-only' : 'oauth');
+  if (providerError) {
+    console.error('[auth/callback] provider error', {
+      code: searchParams.get('error_code') ?? searchParams.get('error'),
+      message: providerError,
+    });
+    return loginError(isInviteRejection(providerError) ? 'invite-only' : 'oauth');
+  }
   if (!code) return loginError('link');
 
   const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) return loginError(isInviteRejection(error.message) ? 'invite-only' : 'link');
+  if (error) {
+    console.error('[auth/callback] exchangeCodeForSession failed', {
+      code: error.code,
+      message: error.message,
+    });
+    return loginError(isInviteRejection(error.message) ? 'invite-only' : 'link');
+  }
 
   return NextResponse.redirect(new URL(next, request.url));
 }
