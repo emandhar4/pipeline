@@ -6,3 +6,21 @@ supabase/.temp/
 .DS_Store
 .env*
 .superpowers/
+
+# next.js / build
+.next/
+/out/
+/build
+/coverage
+*.pem
+npm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+
+# env: ignore all, but commit the template
+!.env.example
+
+# local seed + test output
+supabase/seed.local.*
+/playwright-report
+/test-results
