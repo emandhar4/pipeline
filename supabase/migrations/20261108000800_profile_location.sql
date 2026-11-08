@@ -67,13 +67,20 @@ alter table public.profiles
     and cardinality(work_states) <= 51
   ),
   add constraint profiles_work_countries_check check (
-    cardinality(work_countries) <= 20 and not ('US' = any (work_countries))
+    cardinality(work_countries) <= 20
+    and array_position(work_countries, null) is null
+    and array_to_string(work_countries, ',') ~ '^([A-Z]{2}(,[A-Z]{2})*)?$'
+    and not (work_countries && array['US','PR','GU','VI','AS','MP','UM']::text[])
   );
+
+create index on public.profiles (school_id);
+create index on public.profiles (major_cip);
 
 -- backfill (order matters: states first, then work_* from relocate) -----------------------
 update public.profiles set
   home_state = public.us_state_from_location(home_location),
-  school_state = public.us_state_from_location(school_location);
+  school_state = public.us_state_from_location(school_location)
+  where home_location is not null or school_location is not null;
 
 update public.profiles set work_anywhere_us = true
   where relocate = 'anywhere';
