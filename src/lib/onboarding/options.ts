@@ -21,12 +21,6 @@ export const WORK_STYLES: (Option<WorkStyle> & { hint: string })[] = [
   { value: 'remote_only', label: 'Remote only', hint: 'Remote jobs anywhere in the US.' },
 ];
 
-export const RELOCATE: Option<'no' | 'within_region' | 'anywhere'>[] = [
-  { value: 'no', label: 'No, I need to stay where I am' },
-  { value: 'within_region', label: 'Within my region' },
-  { value: 'anywhere', label: 'Anywhere' },
-];
-
 const INT4_MAX = 2147483647;
 
 export type PayPeriod = 'hour' | 'year';

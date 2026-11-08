@@ -765,7 +765,6 @@ export type Database = {
           onboarding_step: number
           pay_floor_cents: number | null
           pay_floor_period: Database["public"]["Enums"]["pay_period"] | null
-          relocate: Database["public"]["Enums"]["relocate_pref"] | null
           school: string | null
           school_id: string | null
           school_location: string | null
@@ -793,7 +792,6 @@ export type Database = {
           onboarding_step?: number
           pay_floor_cents?: number | null
           pay_floor_period?: Database["public"]["Enums"]["pay_period"] | null
-          relocate?: Database["public"]["Enums"]["relocate_pref"] | null
           school?: string | null
           school_id?: string | null
           school_location?: string | null
@@ -821,7 +819,6 @@ export type Database = {
           onboarding_step?: number
           pay_floor_cents?: number | null
           pay_floor_period?: Database["public"]["Enums"]["pay_period"] | null
-          relocate?: Database["public"]["Enums"]["relocate_pref"] | null
           school?: string | null
           school_id?: string | null
           school_location?: string | null
@@ -1155,7 +1152,6 @@ export type Database = {
       match_state: "new" | "saved" | "hidden" | "applied"
       pay_period: "hour" | "year"
       posting_status: "new" | "seen" | "gone"
-      relocate_pref: "no" | "within_region" | "anywhere"
       remote_kind: "onsite" | "hybrid" | "remote" | "unknown"
       resume_kind: "uploaded" | "generated"
       run_item_status: "ok" | "failed" | "skipped"
@@ -1355,7 +1351,6 @@ export const Constants = {
       match_state: ["new", "saved", "hidden", "applied"],
       pay_period: ["hour", "year"],
       posting_status: ["new", "seen", "gone"],
-      relocate_pref: ["no", "within_region", "anywhere"],
       remote_kind: ["onsite", "hybrid", "remote", "unknown"],
       resume_kind: ["uploaded", "generated"],
       run_item_status: ["ok", "failed", "skipped"],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAREER_STAGES, RELOCATE, WORK_AUTH, parsePayFloor, seasonOptions } from '@/lib/onboarding/options';
+import { CAREER_STAGES, WORK_AUTH, parsePayFloor, seasonOptions } from '@/lib/onboarding/options';
 
 describe('seasonOptions', () => {
   it('lists the next six terms then Full-time', () => {
@@ -56,6 +56,5 @@ describe('option lists', () => {
   it('match the DB enums and check', () => {
     expect(CAREER_STAGES.map((o) => o.value)).toEqual(['intern', 'new_grad', 'experienced', 'career_switcher']);
     expect(WORK_AUTH.map((o) => o.value)).toEqual(['citizen_or_pr', 'no_sponsorship_needed', 'needs_sponsorship']);
-    expect(RELOCATE.map((o) => o.value)).toEqual(['no', 'within_region', 'anywhere']);
   });
 });

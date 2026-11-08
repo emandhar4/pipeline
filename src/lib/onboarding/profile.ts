@@ -31,7 +31,7 @@ async function currentStep(client: Client, userId: string): Promise<number> {
   return data.onboarding_step ?? 0;
 }
 
-/** Writes step 1 answers (relocate is no longer written). grad_date (YYYY-MM) is stored as the first of that month. */
+/** Writes step 1 answers. grad_date (YYYY-MM) is stored as the first of that month. */
 export async function applyStep1(client: Client, userId: string, input: Step1): Promise<void> {
   const step = Math.max(await currentStep(client, userId), 1);
   const { error } = await client
