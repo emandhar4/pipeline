@@ -41,3 +41,4 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgr
 - Use Context7 for current library docs before writing code against a library (Next 16, Supabase, Vitest, Tailwind 4 differ from older versions).
 - Read `node_modules/next/dist/docs/` for Next.js specifics (see `AGENTS.md`).
 - Keep `DECISIONS.md` and this file up to date.
+- Every route handler and server action must call `getCurrentUser()` itself; never rely on the layout or the proxy alone.

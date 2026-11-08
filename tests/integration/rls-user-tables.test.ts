@@ -85,6 +85,23 @@ describe('per-user tables RLS', () => {
     expect(upd.data).toEqual([]);
   });
 
+  it('profiles: owner cannot change ai_mode or delete the row, but can edit allowed columns', async () => {
+    const admin = adminClient();
+    const upd = await a.client.from('profiles').update({ ai_mode: 'api' }).eq('user_id', a.id).select();
+    expect(upd.error !== null || upd.data!.length === 0).toBe(true);
+    const after = await admin.from('profiles').select('ai_mode').eq('user_id', a.id).single();
+    expect(after.data!.ai_mode).toBe('off');
+
+    await a.client.from('profiles').delete().eq('user_id', a.id);
+    const still = await admin.from('profiles').select('user_id').eq('user_id', a.id);
+    expect(still.data).toHaveLength(1);
+
+    const ok = await a.client.from('profiles').update({ school: 'Test U' }).eq('user_id', a.id).select();
+    expect(ok.error).toBeNull();
+    expect(ok.data).toHaveLength(1);
+    expect(ok.data![0].school).toBe('Test U');
+  });
+
   it('backfill covered pre-existing users', async () => {
     const admin: SupabaseClient = adminClient();
     const { data, error } = await admin.rpc('count_users_without_profile');
