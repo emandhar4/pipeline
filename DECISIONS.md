@@ -150,7 +150,7 @@ Phase 2 uses real data only: no fictional seed rows in shared tables. The dashbo
 ## Onboarding forms (2026-11-08)
 
 - The step forms submit through `onSubmit` + `startTransition(formAction)` instead of the `<form action>` prop. React resets uncontrolled fields after a form action, which would wipe the user's answers on a validation error. The cost is that the forms need JavaScript (step 2's chips need it anyway).
-- The in-state question shows only when both locations are filled. When it is hidden, the form sends `in_state_school = false` because the column's schema is a required boolean.
+- The in-state question shows only when both locations are filled, and then it must be answered. Otherwise `in_state_school` is stored as null (unknown), never a guessed `false`. The schema drops a stale answer when a location is cleared.
 - `/profile` is for finished onboarding. A user below step 2 is redirected to `/onboarding`.
 - Step-2 "add your own" chips use `category_slug = null`. Typing a name that already has a chip turns that chip on instead.
 - e2e specs share `tests/e2e/helpers.ts`. Auth specs mark their users onboarded with the admin client so the dashboard gate does not redirect them.

@@ -13,6 +13,18 @@ describe('step1Schema', () => {
     expect(step1Schema.safeParse(step1).success).toBe(true);
     expect(step1Schema.safeParse({ ...step1, grad_date: '2027-13' }).success).toBe(false);
   });
+  it('requires an in-state answer only when both locations are given', () => {
+    const unanswered = step1Schema.safeParse({ ...step1, in_state_school: null });
+    expect(unanswered.success).toBe(false);
+    expect(unanswered.error?.issues).toEqual([
+      expect.objectContaining({ path: ['in_state_school'], message: 'Choose one' }),
+    ]);
+    expect(step1Schema.parse({ ...step1, in_state_school: false }).in_state_school).toBe(false);
+    expect(step1Schema.parse({ ...step1, school_location: '', in_state_school: null }).in_state_school).toBeNull();
+  });
+  it('drops a stale in-state answer when a location is blank', () => {
+    expect(step1Schema.parse({ ...step1, home_location: ' ', in_state_school: true }).in_state_school).toBeNull();
+  });
   it('trims strings and rejects overlong ones', () => {
     expect(step1Schema.parse({ ...step1, school: '  State U ' }).school).toBe('State U');
     expect(step1Schema.safeParse({ ...step1, school: 'x'.repeat(201) }).success).toBe(false);

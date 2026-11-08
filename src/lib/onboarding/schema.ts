@@ -5,18 +5,29 @@ const text = (max: number) => z.string().trim().max(max);
 
 const values = <T extends string>(opts: { value: T }[]) => opts.map((o) => o.value) as [T, ...T[]];
 
-export const step1Schema = z.object({
-  career_stage: z.enum(values(CAREER_STAGES)),
-  school: text(200),
-  major: text(200),
-  // YYYY-MM, or blank when it does not apply.
-  grad_date: z.string().trim().regex(/^(\d{4}-(0[1-9]|1[0-2]))?$/, 'Use YYYY-MM'),
-  work_auth: z.enum(values(WORK_AUTH)),
-  home_location: text(200),
-  school_location: text(200),
-  in_state_school: z.boolean(),
-  relocate: z.enum(values(RELOCATE)),
-});
+export const step1Schema = z
+  .object({
+    career_stage: z.enum(values(CAREER_STAGES)),
+    school: text(200),
+    major: text(200),
+    // YYYY-MM, or blank when it does not apply.
+    grad_date: z.string().trim().regex(/^(\d{4}-(0[1-9]|1[0-2]))?$/, 'Use YYYY-MM'),
+    work_auth: z.enum(values(WORK_AUTH)),
+    home_location: text(200),
+    school_location: text(200),
+    // Null when unknown: the question is only asked once both locations are given.
+    in_state_school: z.boolean().nullable(),
+    relocate: z.enum(values(RELOCATE)),
+  })
+  .superRefine((v, ctx) => {
+    if (v.home_location && v.school_location && v.in_state_school === null) {
+      ctx.addIssue({ code: 'custom', path: ['in_state_school'], message: 'Choose one' });
+    }
+  })
+  // Without both locations the question was not asked, so any stale answer is dropped.
+  .transform((v) =>
+    v.home_location && v.school_location ? v : { ...v, in_state_school: null },
+  );
 export type Step1 = z.infer<typeof step1Schema>;
 
 const fieldSchema = z.object({

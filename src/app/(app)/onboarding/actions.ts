@@ -54,6 +54,13 @@ function json(formData: FormData, name: string): unknown {
   }
 }
 
+/** 'yes' and 'no' map to booleans; anything else (unanswered or not shown) is unknown. */
+function yesNo(value: string): boolean | null {
+  if (value === 'yes') return true;
+  if (value === 'no') return false;
+  return null;
+}
+
 function modeOf(mode: unknown): FormMode {
   return mode === 'profile' ? 'profile' : 'onboarding';
 }
@@ -64,7 +71,7 @@ export async function saveStepOne(
   formData: FormData,
 ): Promise<FormState> {
   await getCurrentUser();
-  const parsed = step1Schema.safeParse({
+  const input = {
     career_stage: text(formData, 'career_stage'),
     school: text(formData, 'school'),
     major: text(formData, 'major'),
@@ -72,10 +79,18 @@ export async function saveStepOne(
     work_auth: text(formData, 'work_auth'),
     home_location: text(formData, 'home_location'),
     school_location: text(formData, 'school_location'),
-    in_state_school: text(formData, 'in_state_school') === 'yes',
+    in_state_school: yesNo(text(formData, 'in_state_school')),
     relocate: text(formData, 'relocate'),
-  });
-  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  };
+  const parsed = step1Schema.safeParse(input);
+  if (!parsed.success) {
+    const errors = fieldErrors(parsed.error);
+    // The schema's in-state check only runs once the other fields pass; report it alongside them.
+    if (input.home_location.trim() && input.school_location.trim() && input.in_state_school === null) {
+      errors.in_state_school ??= 'Choose one';
+    }
+    return { errors };
+  }
 
   try {
     await saveStep1(parsed.data);

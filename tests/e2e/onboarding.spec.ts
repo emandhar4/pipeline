@@ -17,15 +17,15 @@ test.beforeAll(async () => {
 
 test.afterAll(() => pool.cleanup());
 
-async function fillStep1(page: Page, major = 'Economics') {
+async function fillStep1(page: Page, { answerInState = true } = {}) {
   await page.getByLabel('Student looking for an internship').check();
   await page.getByLabel('School', { exact: true }).fill('Example State University');
-  await page.getByLabel('Major', { exact: true }).fill(major);
+  await page.getByLabel('Major', { exact: true }).fill('Economics');
   await page.getByLabel('Graduation month').fill('2028-05');
   await page.getByLabel('Citizen or permanent resident').check();
   await page.getByLabel('Home location', { exact: true }).fill('Columbus, OH');
   await page.getByLabel('School location', { exact: true }).fill('Athens, OH');
-  await page.getByRole('radio', { name: 'Yes', exact: true }).check();
+  if (answerInState) await page.getByRole('radio', { name: 'Yes', exact: true }).check();
   await page.getByLabel('Anywhere').check();
   await page.getByRole('button', { name: 'Continue' }).click();
 }
@@ -53,6 +53,12 @@ test('new user is sent to onboarding and finishes in two steps', async ({ page }
   await page.getByLabel('Prefer', { exact: true }).press('Enter');
   await expect(page.getByRole('button', { name: 'Remove Healthcare tech' })).toBeVisible();
 
+  // The pay toggle's radios are visually hidden; keyboard focus must still show on the label.
+  await page.locator('#pay_amount').focus();
+  await page.keyboard.press('Tab');
+  const focusedToggle = page.locator('.segment label').filter({ has: page.locator(':focus') });
+  await expect(focusedToggle).toHaveCSS('outline-style', 'solid');
+
   await page.getByLabel('Season').selectOption(seasonOptions(new Date())[0]);
   await page.getByRole('button', { name: 'Finish setup' }).click();
 
@@ -63,7 +69,13 @@ test('new user is sent to onboarding and finishes in two steps', async ({ page }
 test('resume at step 2', async ({ page }) => {
   await signIn(page, userB.email);
   await expect(page).toHaveURL(/\/onboarding$/);
-  await fillStep1(page);
+  // The in-state question appears once both locations are filled, and must be answered.
+  await fillStep1(page, { answerInState: false });
+  const inState = page.getByRole('group', { name: 'Is your school in your home state?' });
+  await expect(inState.getByText('Choose one')).toBeVisible();
+  await expect(page.getByText('1 of 2')).toBeVisible();
+  await inState.getByRole('radio', { name: 'Yes', exact: true }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByText('2 of 2')).toBeVisible();
 
   await page.goto('/dashboard');
@@ -79,6 +91,19 @@ test('resume at step 2', async ({ page }) => {
 test('step 2 requires a primary field', async ({ page }) => {
   await signIn(page, userB.email, '/onboarding');
   await expect(page.getByText('2 of 2')).toBeVisible();
+
+  // The industry lists stop at 20: Add disables and a note says why.
+  const prefer = page.getByLabel('Prefer', { exact: true });
+  for (let i = 1; i <= 20; i++) {
+    await prefer.fill(`Industry ${i}`);
+    await prefer.press('Enter');
+  }
+  await expect(page.getByText('Up to 20')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add to Prefer' })).toBeDisabled();
+  await prefer.fill('Industry 21');
+  await prefer.press('Enter');
+  await expect(page.getByRole('button', { name: 'Remove Industry 21' })).toHaveCount(0);
+  await expect(prefer).toHaveValue('Industry 21');
 
   await chip(page, 'Supply Chain').click();
   await chip(page, 'Supply Chain').click();

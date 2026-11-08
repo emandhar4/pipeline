@@ -63,6 +63,7 @@ export function StepTwoForm({
   const errors = state.errors ?? {};
 
   const picked = chips.filter((c) => c.state !== 'off');
+  const industriesFull = industries.length >= MAX_INDUSTRIES;
 
   function cycle(key: string) {
     setChips((cs) => cs.map((c) => (c.key === key ? { ...c, state: NEXT[c.state] } : c)));
@@ -84,12 +85,11 @@ export function StepTwoForm({
   function addIndustry(preference: Preference) {
     const industry = drafts[preference].trim().slice(0, 100);
     if (!industry) return;
-    setIndustries((list) => {
-      // One industry lives in one list; adding it to the other list moves it.
-      const rest = list.filter((i) => !same(i.industry, industry));
-      if (rest.length >= MAX_INDUSTRIES) return list;
-      return [...rest, { industry, preference }];
-    });
+    // One industry lives in one list; adding it to the other list moves it.
+    const rest = industries.filter((i) => !same(i.industry, industry));
+    // At the cap, keep the typed text so nothing is lost; the "Up to 20" note explains why.
+    if (rest.length >= MAX_INDUSTRIES) return;
+    setIndustries([...rest, { industry, preference }]);
     setDrafts((d) => ({ ...d, [preference]: '' }));
   }
 
@@ -206,6 +206,7 @@ export function StepTwoForm({
                   <button
                     type="button"
                     className="btn-secondary"
+                    disabled={industriesFull}
                     onClick={() => addIndustry(pref)}
                     aria-label={`Add to ${label}`}
                   >
@@ -235,6 +236,11 @@ export function StepTwoForm({
             );
           })}
         </div>
+        {industriesFull ? (
+          <p role="status" className="hint">
+            Up to {MAX_INDUSTRIES}. Remove one to add another.
+          </p>
+        ) : null}
         <FieldError name="industries" error={errors.industries} />
       </fieldset>
 
