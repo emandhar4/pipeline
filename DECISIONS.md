@@ -108,3 +108,8 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Decision:** `scripts/check-bundle-secrets.mjs` fails CI if any file in `.next/static` contains the name `SUPABASE_SECRET_KEY` or (when set) its value. In CI it can only match the name (the secret is not set in the build job); the value check runs locally, where the secret is set. Verified by temporarily referencing the secret in a client component (exit 1), then reverting.
 - **Why:** A cheap last-line guard against the service key reaching the browser, beyond `server-only` imports.
 - **Who decided:** Claude (Task 7)
+
+### Production URL and preview limitation
+- **Decision:** Production alias is `https://pipeline-agent-peach.vercel.app`. `NEXT_PUBLIC_SITE_URL` is set to it for both production and preview (the env schema requires a valid URL), so sign-ins started from a preview deployment redirect back to production. Supabase Auth `site_url` and redirect allow-list contain localhost and the production URL only. `vercel.json` pins the framework to Next.js and `engines.node` to 24.x. Deploys are currently done with `vercel --prod` because `vercel git connect` needs a GitHub login connection on the Vercel account (manual step).
+- **Why:** Free tier, single auth redirect target; preview auth is not a goal in Phase 1.
+- **Who decided:** Claude (Task 7)
