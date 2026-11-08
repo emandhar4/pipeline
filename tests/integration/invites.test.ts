@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 import { afterAll, describe, expect, it } from 'vitest';
 import { adminClient } from './helpers';
 
@@ -22,14 +23,26 @@ afterAll(async () => {
 
 describe('invite-only signup', () => {
   it('rejects an uninvited email', async () => {
-    const { data, error } = await admin.auth.admin.createUser({
+    // The Admin API (createUser) skips the before_user_created hook, so this
+    // must go through the public signUp endpoint with the publishable key.
+    const publicClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { data, error } = await publicClient.auth.signUp({
       email: `nobody-${rand()}@example.test`,
-      email_confirm: true,
+      password: `Aa1!${randomBytes(16).toString('hex')}`,
     });
     if (data?.user) createdUsers.push(data.user.id);
+    expect(error?.status).toBe(403);
     expect(error?.message).toContain('invite-only');
   });
 
+  // The admin API skips the hook, and public signUp would try to send a
+  // confirmation email (built-in SMTP only reaches team members). So this test
+  // covers only the case-insensitive invites row and the accepted_at trigger,
+  // not hook acceptance.
   it('accepts an invited email regardless of case', async () => {
     const tag = rand();
     const email = `case-${tag}@example.test`;

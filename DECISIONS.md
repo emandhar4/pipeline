@@ -105,6 +105,6 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Who decided:** Claude's call, per controller ruling
 
 ### Client bundle secret check
-- **Decision:** `scripts/check-bundle-secrets.mjs` fails CI if any file in `.next/static` contains the name `SUPABASE_SECRET_KEY` or (when set) its value. Verified by temporarily referencing the secret in a client component (exit 1), then reverting.
+- **Decision:** `scripts/check-bundle-secrets.mjs` fails CI if any file in `.next/static` contains the name `SUPABASE_SECRET_KEY` or (when set) its value. In CI it can only match the name (the secret is not set in the build job); the value check runs locally, where the secret is set. Verified by temporarily referencing the secret in a client component (exit 1), then reverting.
 - **Why:** A cheap last-line guard against the service key reaching the browser, beyond `server-only` imports.
 - **Who decided:** Claude (Task 7)

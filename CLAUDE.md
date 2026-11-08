@@ -13,7 +13,7 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgr
 - `npm run typecheck` (`next typegen && tsc --noEmit`)
 - `npm test` (Vitest: `tests/unit`, `tests/integration`)
 - `npm run test:e2e` (Playwright)
-- CI (`.github/workflows/ci.yml`): lint, typecheck, unit tests, build and `node scripts/check-bundle-secrets.mjs` on every push and PR to `main`; integration tests only on push to `main`.
+- CI (`.github/workflows/ci.yml`): lint, typecheck, unit tests, build and `node scripts/check-bundle-secrets.mjs` on every push (any branch) and PR to `main`; integration tests only on push to `main`.
 
 ## Constraints
 

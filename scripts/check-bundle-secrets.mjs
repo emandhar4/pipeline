@@ -34,6 +34,11 @@ for (const file of walk(root)) {
   }
 }
 
+if (scanned === 0) {
+  console.error(`check-bundle-secrets: scanned 0 files under ${root}; refusing to pass.`);
+  process.exit(1);
+}
+
 if (leaks.length > 0) {
   console.error('check-bundle-secrets: secret leaked into the client bundle:');
   for (const leak of leaks) console.error(`  ${leak}`);
