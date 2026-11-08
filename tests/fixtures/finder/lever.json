@@ -1,0 +1,5 @@
+[
+ {"id":"aaaaaaaa-1111-4111-8111-000000000001","text":"Product Design Intern","categories":{"commitment":"Intern","location":"San Francisco, CA","team":"Design","allLocations":["San Francisco, CA","Remote"]},"createdAt":1793404800000,"hostedUrl":"https://jobs.lever.co/examplelabs/aaaaaaaa-1111-4111-8111-000000000001","applyUrl":"https://jobs.lever.co/examplelabs/aaaaaaaa-1111-4111-8111-000000000001/apply","workplaceType":"hybrid","country":"US"},
+ {"id":"aaaaaaaa-1111-4111-8111-000000000002","text":"Data Analyst","categories":{"commitment":"Intern","location":"Remote - US","team":"Data"},"createdAt":1793318400000,"hostedUrl":"https://jobs.lever.co/examplelabs/aaaaaaaa-1111-4111-8111-000000000002","workplaceType":"remote","country":"US","salaryRange":{"currency":"USD","interval":"per-hour-wage","min":35,"max":42}},
+ {"id":"aaaaaaaa-1111-4111-8111-000000000003","text":"Staff Backend Engineer","categories":{"commitment":"Full-time","location":"Chicago, IL"},"createdAt":1790000000000,"hostedUrl":"https://jobs.lever.co/examplelabs/aaaaaaaa-1111-4111-8111-000000000003","workplaceType":"on-site"}
+]

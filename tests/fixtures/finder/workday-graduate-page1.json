@@ -1,0 +1,41 @@
+{
+ "total": 4,
+ "jobPostings": [
+  {
+   "title": "Graduate Engineer c0",
+   "externalPath": "/job/Austin-TX/Graduate-Engineer-c0_Rc0",
+   "locationsText": "Austin, TX",
+   "postedOn": "Posted 26 Days Ago",
+   "bulletFields": [
+    "Rc0"
+   ]
+  },
+  {
+   "title": "Graduate Engineer c1",
+   "externalPath": "/job/Austin-TX/Graduate-Engineer-c1_Rc1",
+   "locationsText": "Austin, TX",
+   "postedOn": "Posted 26 Days Ago",
+   "bulletFields": [
+    "Rc1"
+   ]
+  },
+  {
+   "title": "Graduate Engineer c2",
+   "externalPath": "/job/Austin-TX/Graduate-Engineer-c2_Rc2",
+   "locationsText": "Austin, TX",
+   "postedOn": "Posted 26 Days Ago",
+   "bulletFields": [
+    "Rc2"
+   ]
+  },
+  {
+   "title": "Software Intern a3",
+   "externalPath": "/job/Austin-TX/Software-Intern-a3_Ra3",
+   "locationsText": "Austin, TX",
+   "postedOn": "Posted 26 Days Ago",
+   "bulletFields": [
+    "Ra3"
+   ]
+  }
+ ]
+}
