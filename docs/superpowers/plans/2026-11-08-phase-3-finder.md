@@ -282,7 +282,7 @@ Builder calls (record in `DECISIONS.md` in Task 12):
   - Incomplete profile (definition in the design) → return `'incomplete'`, change nothing.
   - Level: stage `intern` → `level = 'internship'`; `new_grad` → `level = 'new_grad'`; `experienced` / `career_switcher` → `level in ('experienced','unknown')`.
   - Season: only for internships: pass when `terms = '{}'` or `season = any(terms)`; season `Full-time` passes all.
-  - Place: `in_person` → (`work_anywhere_us` and `'US' = any(countries)`) or `states && work_states` or `countries && work_countries`, and `remote <> 'remote'`; `either` → that, or `remote = 'remote'` and (`'US' = any(countries)` or `countries = '{}'`); `remote_only` → `remote = 'remote'` and (`'US' = any(countries)` or `countries = '{}'`). `location_unknown` → pass with reason `location_unknown`.
+  - Place: `in_person` → (`work_anywhere_us` and `'US' = any(countries)`) or `states && work_states` or `countries && work_countries` (any `remote` value: `remote = 'remote'` means a remote option exists, and a posting with offices plus a remote option keeps its states); `either` → that, or `remote = 'remote'` and (`'US' = any(countries)` or `countries = '{}'`); `remote_only` → `remote = 'remote'` and (`'US' = any(countries)` or `countries = '{}'`). `location_unknown` → pass with reason `location_unknown`.
   - Field: `field_slugs && <user's category slugs>`, or the title contains a user's free-text label as a whole word (case-insensitive). Primary vs secondary recorded in `reasons.fields`. `// LLM-UPGRADE:` comment here.
   - Writes `passed_filter`, `filter_reasons` (failing rules: `level`, `season`, `place`, `field`), `reasons = {fields: [...], weight: 'primary'|'secondary', location_unknown: bool}`, `confirm_pay = pay_min_cents is null`, `base_score = null`.
   - Rows for postings that no longer pass get `passed_filter = false` (row kept, so `saved`/`hidden` survive).
@@ -292,7 +292,7 @@ Builder calls (record in `DECISIONS.md` in Task 12):
   - `null work_style is incomplete` → `'incomplete'`, no rows.
   - `in_person with no places is incomplete`; `remote_only with no places is complete`.
   - `remote_only gets only remote US postings` (CA onsite fails `place`; remote US passes; remote with countries `['GB']` fails).
-  - `anywhere in the US passes any US state`; `in_person excludes remote-only postings`.
+  - `anywhere in the US passes any US state`; `in_person excludes fully remote postings (no states)`; `a posting in CA with a remote option passes both an in_person CA user and a remote_only user`.
   - `intern with Summer 2027 skips a Fall 2026 internship` but passes one with no terms.
   - `intern with Full-time season` still matches internships only (level rule).
   - `free-text field 'Actuarial' matches title 'Actuarial Intern'` and not `'Factual Reporting Intern'`.
