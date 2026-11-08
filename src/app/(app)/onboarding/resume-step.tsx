@@ -83,7 +83,11 @@ export function ResumeStep({ userId }: { userId: string }) {
           e.preventDefault();
           if (!busy) setDragging(true);
         }}
-        onDragLeave={() => setDragging(false)}
+        onDragLeave={(e) => {
+          // Moving onto a child also fires dragleave; only leaving the zone itself counts.
+          if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+          setDragging(false);
+        }}
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);

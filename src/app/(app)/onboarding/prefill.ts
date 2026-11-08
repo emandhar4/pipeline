@@ -12,13 +12,15 @@ export function answersFilled(fromResume: string[]): number {
 
 /**
  * Fills empty step-1 answers from resume suggestions. Never overwrites what the user has.
- * A school the user already has keeps its own id, location and state.
+ * A school the user already has keeps its own id, location and state. Once step 1 has been
+ * saved (`savedStep >= 1`) a blank answer is the user's choice, so nothing is filled.
  */
 export function prefillStepOne(
   values: StepOneValues,
   s: ResumeSuggestions | null,
+  savedStep = 0,
 ): { values: StepOneValues; fromResume: string[] } {
-  if (!s) return { values, fromResume: [] };
+  if (!s || savedStep >= 1) return { values, fromResume: [] };
   const next = { ...values };
   const fromResume: string[] = [];
   const fill = (key: keyof StepOneValues & string, value: string | null | undefined) => {
@@ -43,13 +45,20 @@ export function prefillStepOne(
   return { values: next, fromResume };
 }
 
-/** Switches on the suggested field chips, but only when the user has picked none. */
+/**
+ * Switches on the suggested field chips, but only when the user has picked none. Slugs not in
+ * `categories` (e.g. a category removed since the resume was read) are dropped.
+ */
 export function prefillStepTwo(
   values: StepTwoValues,
   s: ResumeSuggestions | null,
+  categories: { slug: string; name: string }[],
 ): { values: StepTwoValues; suggested: string[] } {
-  if (!s || s.fields.length === 0 || values.fields.length > 0) return { values, suggested: [] };
-  // The chip label comes from the category list; the slug is only a fallback.
-  const fields = s.fields.map((f) => ({ category_slug: f.slug, label: f.slug, weight: f.weight }));
-  return { values: { ...values, fields }, suggested: s.fields.map((f) => f.slug) };
+  if (!s || values.fields.length > 0) return { values, suggested: [] };
+  const fields = s.fields.flatMap((f) => {
+    const category = categories.find((c) => c.slug === f.slug);
+    return category ? [{ category_slug: f.slug, label: category.name, weight: f.weight }] : [];
+  });
+  if (fields.length === 0) return { values, suggested: [] };
+  return { values: { ...values, fields }, suggested: fields.map((f) => f.category_slug) };
 }

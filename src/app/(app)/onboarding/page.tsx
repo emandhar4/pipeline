@@ -54,15 +54,17 @@ async function Onboarding({ searchParams }: Pick<PageProps<'/onboarding'>, 'sear
   if (step === 0) {
     form = <ResumeStep userId={userId} />;
   } else if (step === 1) {
-    const { values, fromResume } = prefillStepOne(stepOneValues(state), suggestions);
+    // Only before step 1 is first saved: after that a blank answer was left blank on purpose.
+    const { values, fromResume } = prefillStepOne(stepOneValues(state), suggestions, state.step);
     form = <StepOneForm mode="onboarding" values={values} fromResume={fromResume} />;
   } else {
-    const { values, suggested } = prefillStepTwo(stepTwoValues(state), suggestions);
+    const categories = await loadCategories();
+    const { values, suggested } = prefillStepTwo(stepTwoValues(state), suggestions, categories);
     form = (
       <StepTwoForm
         mode="onboarding"
         values={values}
-        categories={await loadCategories()}
+        categories={categories}
         seasons={seasonsFor(values.season)}
         suggested={suggested}
       />

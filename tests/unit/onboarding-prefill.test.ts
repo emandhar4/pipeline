@@ -44,6 +44,12 @@ const FULL: ResumeSuggestions = {
   ],
 };
 
+const CATEGORIES = [
+  { slug: 'data-analysis', name: 'Data Analysis' },
+  { slug: 'supply-chain', name: 'Supply Chain' },
+  { slug: 'marketing', name: 'Marketing' },
+];
+
 describe('prefillStepOne', () => {
   it('fills every empty target from full suggestions and names them', () => {
     const { values, fromResume } = prefillStepOne(EMPTY_ONE, FULL);
@@ -124,6 +130,17 @@ describe('prefillStepOne', () => {
     expect([...fromResume].sort()).toEqual(['grad_date', 'major', 'school'].sort());
   });
 
+  it('fills nothing once step 1 has been saved, so a blank left on purpose stays blank', () => {
+    const saved: StepOneValues = { ...EMPTY_ONE, school: 'My College', grad_date: '' };
+    const { values, fromResume } = prefillStepOne(saved, FULL, 1);
+    expect(values).toEqual(saved);
+    expect(values.grad_date).toBe('');
+    expect(fromResume).toEqual([]);
+    expect(prefillStepOne(saved, FULL, 2)).toEqual({ values: saved, fromResume: [] });
+    // Before the first save it still fills.
+    expect(prefillStepOne(saved, FULL, 0).values.grad_date).toBe('2027-05');
+  });
+
   it('returns the values unchanged for null suggestions', () => {
     const { values, fromResume } = prefillStepOne(EMPTY_ONE, null);
     expect(values).toEqual(EMPTY_ONE);
@@ -147,10 +164,10 @@ describe('prefillStepOne', () => {
 
 describe('prefillStepTwo', () => {
   it('sets supply chain primary and data analysis secondary when no field is picked', () => {
-    const { values, suggested } = prefillStepTwo(EMPTY_TWO, FULL);
+    const { values, suggested } = prefillStepTwo(EMPTY_TWO, FULL, CATEGORIES);
     expect(values.fields).toEqual([
-      { category_slug: 'supply-chain', label: 'supply-chain', weight: 'primary' },
-      { category_slug: 'data-analysis', label: 'data-analysis', weight: 'secondary' },
+      { category_slug: 'supply-chain', label: 'Supply Chain', weight: 'primary' },
+      { category_slug: 'data-analysis', label: 'Data Analysis', weight: 'secondary' },
     ]);
     expect(suggested).toEqual(['supply-chain', 'data-analysis']);
     expect({ ...values, fields: [] }).toEqual(EMPTY_TWO);
@@ -161,16 +178,33 @@ describe('prefillStepTwo', () => {
       ...EMPTY_TWO,
       fields: [{ category_slug: 'marketing', label: 'Marketing', weight: 'primary' }],
     };
-    const { values, suggested } = prefillStepTwo(mine, FULL);
+    const { values, suggested } = prefillStepTwo(mine, FULL, CATEGORIES);
     expect(values).toEqual(mine);
     expect(suggested).toEqual([]);
   });
 
   it('changes nothing for null suggestions or no suggested fields', () => {
-    expect(prefillStepTwo(EMPTY_TWO, null)).toEqual({ values: EMPTY_TWO, suggested: [] });
-    expect(prefillStepTwo(EMPTY_TWO, { ...FULL, fields: [] })).toEqual({
+    expect(prefillStepTwo(EMPTY_TWO, null, CATEGORIES)).toEqual({ values: EMPTY_TWO, suggested: [] });
+    expect(prefillStepTwo(EMPTY_TWO, { ...FULL, fields: [] }, CATEGORIES)).toEqual({
       values: EMPTY_TWO,
       suggested: [],
     });
+  });
+
+  it('drops suggested slugs that are no longer categories', () => {
+    const stale: ResumeSuggestions = {
+      ...FULL,
+      fields: [
+        { slug: 'retired-category', weight: 'primary', matched: ['a', 'b', 'c'] },
+        { slug: 'data-analysis', weight: 'secondary', matched: ['sql', 'tableau'] },
+      ],
+    };
+    const { values, suggested } = prefillStepTwo(EMPTY_TWO, stale, CATEGORIES);
+    expect(values.fields).toEqual([
+      { category_slug: 'data-analysis', label: 'Data Analysis', weight: 'secondary' },
+    ]);
+    expect(suggested).toEqual(['data-analysis']);
+    const allStale = { ...stale, fields: [stale.fields[0]] };
+    expect(prefillStepTwo(EMPTY_TWO, allStale, CATEGORIES)).toEqual({ values: EMPTY_TWO, suggested: [] });
   });
 });
