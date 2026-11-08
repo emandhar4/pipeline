@@ -160,9 +160,9 @@ describe('smartrecruiters adapter', () => {
     const r = await fetchBoard(http, company('smartrecruiters', 'ExampleBank'))
     expect(calls.map((c) => c.url)).toEqual([
       'https://api.smartrecruiters.com/v1/companies/ExampleBank/postings?limit=100&offset=0',
-      'https://api.smartrecruiters.com/v1/companies/ExampleBank/postings?limit=100&offset=100',
+      'https://api.smartrecruiters.com/v1/companies/ExampleBank/postings?limit=100&offset=2',
     ])
-    expect(r).toMatchObject({ status: 'ok', fetched: 3, scope: 'smartrecruiters:ExampleBank' })
+    expect(r).toMatchObject({ status: 'ok', fetched: 3, complete: true, scope: 'smartrecruiters:ExampleBank' })
     const [a, b, c] = r.postings
     expect(a).toMatchObject({ level: 'internship', states: ['IL'], applyUrl: 'https://jobs.smartrecruiters.com/ExampleBank/743999000000001', postedDate: '2026-10-22' })
     expect(b).toMatchObject({ level: 'experienced', remote: 'hybrid' })
@@ -172,7 +172,8 @@ describe('smartrecruiters adapter', () => {
     const { http, calls } = fakeHttp(() => ok({ totalFound: 5000, content: [{ id: 'x', name: 'Job' }] }))
     const r = await fetchBoard(http, company('smartrecruiters', 't'))
     expect(calls).toHaveLength(10)
-    expect(r.status).toBe('ok')
+    expect(calls[9].url).toContain('offset=9')
+    expect(r).toMatchObject({ status: 'ok', complete: false })
   })
   it('fails the scope when a later page fails', async () => {
     const { http } = fakeHttp((url) => (url.includes('offset=0') ? ok(fx('smartrecruiters-page1')) : { ok: false, reason: 'HTTP 500' }))
@@ -281,5 +282,84 @@ describe('fetchBoard misc', () => {
   })
   it('exposes board URLs', () => {
     expect(BOARD_URLS.greenhouse(company('greenhouse', 'abc'))).toContain('/boards/abc/jobs')
+  })
+})
+
+describe('fix round 1', () => {
+  const noIds = (n: number, extra: Record<string, unknown> = {}) => Array.from({ length: n }, (_, i) => ({ title: `Intern ${i}`, ...extra }))
+
+  it('fails when every row lacks required fields (simplify, greenhouse, workday)', async () => {
+    const a = await fetchSimplify(fakeHttp(() => ok(noIds(5, { company_name: 'X' }))).http, 'intern')
+    expect(a).toMatchObject({ status: 'failed', reason: 'unexpected response shape', postings: [], complete: false })
+    const b = await fetchBoard(fakeHttp(() => ok({ jobs: noIds(3) })).http, company('greenhouse', 't'))
+    expect(b).toMatchObject({ status: 'failed', reason: 'unexpected response shape', postings: [] })
+    const c = await fetchBoard(
+      fakeHttp(() => ok({ jobPostings: noIds(3) })).http,
+      company('workday', 'example', { host: 'example.wd5.myworkdayjobs.com', tenant: 'example', site: 'Careers' }),
+    )
+    expect(c).toMatchObject({ status: 'failed', reason: 'unexpected response shape', postings: [] })
+  })
+
+  it('fails when more than 20% of rows are rejected, but tolerates a few', async () => {
+    const good = (i: number) => ({ id: i, title: `Intern ${i}`, location: { name: 'Austin, TX' }, absolute_url: 'https://boards.greenhouse.io/x/jobs/1' })
+    const mixed = (bad: number) => ({ jobs: [...Array.from({ length: 10 }, (_, i) => good(i)), ...noIds(bad)] })
+    const over = await fetchBoard(fakeHttp(() => ok(mixed(4))).http, company('greenhouse', 't'))
+    expect(over).toMatchObject({ status: 'failed', reason: 'unexpected response shape' })
+    const under = await fetchBoard(fakeHttp(() => ok(mixed(2))).http, company('greenhouse', 't'))
+    expect(under).toMatchObject({ status: 'ok', complete: true })
+    expect(under.postings).toHaveLength(10)
+  })
+
+  it('legit skips are not rejections (unlisted Ashby only)', async () => {
+    const r = await fetchBoard(
+      fakeHttp(() => ok({ jobs: [{ id: 'a', title: 'T', isListed: false }, { id: 'b', title: 'U', isListed: false }] })).http,
+      company('ashby', 't'),
+    )
+    expect(r).toMatchObject({ status: 'ok', postings: [] })
+  })
+
+  it('marks failed and skipped results incomplete, normal ones complete', async () => {
+    expect((await fetchBoard(fakeHttp(() => ok({ jobs: [] })).http, company('greenhouse', 't'))).complete).toBe(true)
+    expect((await fetchBoard(fakeHttp(() => ({ ok: false, reason: 'HTTP 500' })).http, company('greenhouse', 't'))).complete).toBe(false)
+    expect((await fetchBoard(fakeHttp(() => ok({})).http, company('rippling', 't'))).complete).toBe(false)
+  })
+
+  it('workday hitting the page cap with a full last page is ok but incomplete', async () => {
+    const full = { jobPostings: Array.from({ length: 20 }, (_, i) => ({ title: 'Intern', externalPath: `/job/x/${Math.random()}-${i}` })) }
+    const meta = { host: 'example.wd5.myworkdayjobs.com', tenant: 'example', site: 'Careers' }
+    const r = await fetchBoard(fakeHttp(() => ok(full)).http, company('workday', 'example', meta))
+    expect(r).toMatchObject({ status: 'ok', complete: false })
+    const short = await fetchBoard(fakeHttp(() => ok({ jobPostings: full.jobPostings.slice(0, 5) })).http, company('workday', 'example', meta))
+    expect(short).toMatchObject({ status: 'ok', complete: true })
+  })
+
+  it('greenhouse pay only for USD, and does not read a unit field', async () => {
+    const job = (cur: unknown, unit?: string) => ({
+      jobs: [{ id: 1, title: 'Intern', location: { name: 'Austin, TX' }, pay_input_ranges: [{ min_cents: 4500, max_cents: 5500, currency_type: cur, unit }] }],
+    })
+    const eur = await fetchBoard(fakeHttp(() => ok(job('EUR'))).http, company('greenhouse', 't'))
+    expect(eur.postings[0]).toMatchObject({ payMinCents: null, payMaxCents: null, payPeriod: null })
+    const usd = await fetchBoard(fakeHttp(() => ok(job('USD', 'year'))).http, company('greenhouse', 't'))
+    expect(usd.postings[0]).toMatchObject({ payMinCents: 4500, payPeriod: 'hour' }) // unit ignored; magnitude rule
+    const none = await fetchBoard(fakeHttp(() => ok(job(undefined))).http, company('greenhouse', 't'))
+    expect(none.postings[0].payMinCents).toBe(4500)
+  })
+
+  it('stores no pay when the period cannot be determined', async () => {
+    const lever = [{ id: 'l1', text: 'Intern', categories: { location: 'Austin, TX' }, salaryRange: { currency: 'USD', interval: 'per-fortnight', min: 3000, max: 4000 } }]
+    const r = await fetchBoard(fakeHttp(() => ok(lever)).http, company('lever', 't'))
+    expect(r.postings[0]).toMatchObject({ payMinCents: null, payMaxCents: null, payPeriod: null })
+  })
+
+  it('smartrecruiters pages by rows fetched and continues on a full page without totalFound', async () => {
+    const page = (n: number) => ({ content: Array.from({ length: n }, (_, i) => ({ id: `id${Math.random()}-${i}`, name: 'Job' })) })
+    const seen: string[] = []
+    const { http } = fakeHttp((url) => {
+      seen.push(url.split('?')[1])
+      return ok(url.includes('offset=0') ? page(100) : page(30))
+    })
+    const r = await fetchBoard(http, company('smartrecruiters', 't'))
+    expect(seen).toEqual(['limit=100&offset=0', 'limit=100&offset=100'])
+    expect(r).toMatchObject({ status: 'ok', fetched: 130, complete: true })
   })
 })

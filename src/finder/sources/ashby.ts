@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { BoardCompany, NormalizedPosting } from '../types'
+import type { Parsed } from './build'
 import { buildPosting, cents, num, periodFrom, rec, str, toDate } from './build'
 
 export const shape = z.looseObject({ jobs: z.array(z.unknown()) })
@@ -7,14 +8,18 @@ export const shape = z.looseObject({ jobs: z.array(z.unknown()) })
 export const url = (c: BoardCompany) =>
   `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(c.token)}?includeCompensation=true`
 
-export function parse(c: BoardCompany, data: z.infer<typeof shape>): NormalizedPosting[] {
+export function parse(c: BoardCompany, data: z.infer<typeof shape>): Parsed {
   const out: NormalizedPosting[] = []
+  let rejected = 0
   for (const item of data.jobs) {
     const r = rec(item)
     if (r.isListed === false) continue
     const id = str(r.id)
     const title = str(r.title)
-    if (!id || !title) continue
+    if (!id || !title) {
+      rejected++
+      continue
+    }
     const secondary = Array.isArray(r.secondaryLocations)
       ? r.secondaryLocations.map((s) => str(s) ?? str(rec(s).location))
       : []
@@ -40,5 +45,5 @@ export function parse(c: BoardCompany, data: z.infer<typeof shape>): NormalizedP
       }),
     )
   }
-  return out
+  return { postings: out, rejected }
 }

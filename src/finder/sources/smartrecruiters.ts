@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { countryName } from '../../lib/onboarding/regions'
 import type { Http } from '../http'
 import type { BoardCompany, NormalizedPosting, ScopeResult } from '../types'
-import { SHAPE_ERROR, buildPosting, num, rec, scopeFailed, scopeOk, str, toDate } from './build'
+import { SHAPE_ERROR, buildPosting, num, rec, scopeFailed, scopeOk, str, toDate, tooManyRejected } from './build'
 
 const shape = z.looseObject({ content: z.array(z.unknown()), totalFound: z.number().optional() })
 
@@ -37,19 +37,24 @@ function toPosting(c: BoardCompany, item: unknown): NormalizedPosting | null {
 export async function fetchSmartRecruiters(http: Http, c: BoardCompany, scope: string): Promise<ScopeResult> {
   const postings: NormalizedPosting[] = []
   let fetched = 0
-  let total = Infinity
-  for (let page = 0; page < MAX_PAGES && fetched < total; page++) {
-    const res = await http.getJson<unknown>(url(c, page * PAGE))
+  let rejected = 0
+  let more = true
+  for (let page = 0; page < MAX_PAGES && more; page++) {
+    // Offset is the number of rows already fetched, whatever the server's page size turned out to be.
+    const res = await http.getJson<unknown>(url(c, fetched))
     if (!res.ok) return scopeFailed(scope, 'smartrecruiters', c.id, res.reason)
     const parsed = shape.safeParse(res.data)
     if (!parsed.success) return scopeFailed(scope, 'smartrecruiters', c.id, SHAPE_ERROR)
-    total = num(parsed.data.totalFound) ?? parsed.data.content.length
-    fetched += parsed.data.content.length
-    for (const item of parsed.data.content) {
+    const rows = parsed.data.content
+    fetched += rows.length
+    for (const item of rows) {
       const p = toPosting(c, item)
       if (p) postings.push(p)
+      else rejected++
     }
-    if (parsed.data.content.length === 0) break
+    const total = num(parsed.data.totalFound)
+    more = rows.length > 0 && (rows.length === PAGE || (total !== undefined && fetched < total))
   }
-  return scopeOk(scope, 'smartrecruiters', c.id, fetched, postings)
+  if (tooManyRejected(postings.length, rejected)) return scopeFailed(scope, 'smartrecruiters', c.id, SHAPE_ERROR)
+  return scopeOk(scope, 'smartrecruiters', c.id, fetched, postings, !more)
 }

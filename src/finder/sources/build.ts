@@ -64,7 +64,8 @@ export function buildPosting(i: PostingInput): NormalizedPosting {
   if (i.remoteFlag === 'hybrid') remote = 'hybrid'
   else if (i.remoteFlag === 'remote' && remote !== 'hybrid') remote = 'remote'
   const pay = i.pay
-  const hasPay = pay && (pay.min !== null || pay.max !== null)
+  // No period means we cannot say what the numbers mean, so store no pay at all.
+  const hasPay = pay && pay.period !== null && (pay.min !== null || pay.max !== null)
   return {
     externalId: i.externalId,
     company: i.company,
@@ -93,10 +94,18 @@ export function scopeOk(
   companyId: string | null,
   fetched: number,
   postings: NormalizedPosting[],
+  complete = true,
 ): ScopeResult {
-  return { scope, source, companyId, status: 'ok', fetched, postings }
+  return { scope, source, companyId, status: 'ok', fetched, complete, postings }
 }
 
+/** True when rejected rows (missing required fields) mean the response is not the shape we expect. */
+export function tooManyRejected(valid: number, rejected: number): boolean {
+  return rejected > 0 && (valid === 0 || rejected / (valid + rejected) > 0.2)
+}
+
+export type Parsed = { postings: NormalizedPosting[]; rejected: number }
+
 export function scopeFailed(scope: string, source: string, companyId: string | null, reason: string): ScopeResult {
-  return { scope, source, companyId, status: 'failed', reason, fetched: 0, postings: [] }
+  return { scope, source, companyId, status: 'failed', reason, fetched: 0, complete: false, postings: [] }
 }

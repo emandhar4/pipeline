@@ -1,7 +1,8 @@
 import type { Http } from '../http'
 import type { BoardCompany, ScopeResult } from '../types'
 import * as ashby from './ashby'
-import { SHAPE_ERROR, scopeFailed, scopeOk } from './build'
+import { SHAPE_ERROR, scopeFailed, scopeOk, tooManyRejected } from './build'
+import type { Parsed } from './build'
 import * as greenhouse from './greenhouse'
 import * as lever from './lever'
 import * as recruitee from './recruitee'
@@ -25,7 +26,7 @@ export const BOARD_URLS = {
 interface Adapter<S> {
   shape: { safeParse(v: unknown): { success: true; data: S } | { success: false } }
   url: (c: BoardCompany) => string
-  parse: (c: BoardCompany, data: S) => ScopeResult['postings']
+  parse: (c: BoardCompany, data: S) => Parsed
 }
 
 async function simple<S>(http: Http, c: BoardCompany, scope: string, a: Adapter<S>): Promise<ScopeResult> {
@@ -33,7 +34,8 @@ async function simple<S>(http: Http, c: BoardCompany, scope: string, a: Adapter<
   if (!res.ok) return scopeFailed(scope, c.ats, c.id, res.reason)
   const parsed = a.shape.safeParse(res.data)
   if (!parsed.success) return scopeFailed(scope, c.ats, c.id, SHAPE_ERROR)
-  const postings = a.parse(c, parsed.data)
+  const { postings, rejected } = a.parse(c, parsed.data)
+  if (tooManyRejected(postings.length, rejected)) return scopeFailed(scope, c.ats, c.id, SHAPE_ERROR)
   const raw = parsed.data as unknown
   const fetched = Array.isArray(raw)
     ? raw.length
@@ -66,6 +68,7 @@ export async function fetchBoard(http: Http, company: BoardCompany): Promise<Sco
         status: 'skipped',
         reason: `no adapter for ${company.ats}`,
         fetched: 0,
+        complete: false,
         postings: [],
       }
   }

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { termsFromText } from '../classify'
 import type { Http } from '../http'
 import type { ScopeResult } from '../types'
-import { SHAPE_ERROR, buildPosting, num, rec, scopeFailed, scopeOk, str, strs, toDate } from './build'
+import { SHAPE_ERROR, buildPosting, num, rec, scopeFailed, scopeOk, str, strs, toDate, tooManyRejected } from './build'
 import type { PostingInput } from './build'
 
 const REPOS = {
@@ -34,12 +34,16 @@ export async function fetchSimplify(http: Http, kind: 'intern' | 'newgrad'): Pro
   if (!parsed.success) return scopeFailed(scope, 'simplify', null, SHAPE_ERROR)
 
   const postings = []
+  let rejected = 0
   for (const item of parsed.data) {
     const r = rec(item)
     const id = str(r.id)
     const title = str(r.title)
     const company = str(r.company_name)
-    if (!id || !title || !company) continue
+    if (!id || !title || !company) {
+      rejected++
+      continue
+    }
     const live = r.active !== false && r.is_visible !== false
     const input: PostingInput = {
       externalId: id,
@@ -55,5 +59,6 @@ export async function fetchSimplify(http: Http, kind: 'intern' | 'newgrad'): Pro
     }
     postings.push(buildPosting(input))
   }
+  if (tooManyRejected(postings.length, rejected)) return scopeFailed(scope, 'simplify', null, SHAPE_ERROR)
   return scopeOk(scope, 'simplify', null, parsed.data.length, postings)
 }

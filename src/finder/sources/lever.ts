@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { BoardCompany, NormalizedPosting } from '../types'
+import type { Parsed } from './build'
 import { buildPosting, cents, num, periodFrom, rec, str, strs, toDate } from './build'
 
 export const shape = z.array(z.unknown())
@@ -7,13 +8,17 @@ export const shape = z.array(z.unknown())
 export const url = (c: BoardCompany) =>
   `https://${c.meta.region === 'eu' ? 'api.eu.lever.co' : 'api.lever.co'}/v0/postings/${encodeURIComponent(c.token)}?mode=json`
 
-export function parse(c: BoardCompany, data: unknown[]): NormalizedPosting[] {
+export function parse(c: BoardCompany, data: unknown[]): Parsed {
   const out: NormalizedPosting[] = []
+  let rejected = 0
   for (const item of data) {
     const r = rec(item)
     const id = str(r.id)
     const title = str(r.text)
-    if (!id || !title) continue
+    if (!id || !title) {
+      rejected++
+      continue
+    }
     const cat = rec(r.categories)
     const locations = [...new Set([str(cat.location), ...strs(cat.allLocations)].filter((x): x is string => !!x))]
     const wt = str(r.workplaceType)?.toLowerCase()
@@ -37,5 +42,5 @@ export function parse(c: BoardCompany, data: unknown[]): NormalizedPosting[] {
       }),
     )
   }
-  return out
+  return { postings: out, rejected }
 }

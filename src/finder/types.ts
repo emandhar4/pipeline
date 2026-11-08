@@ -31,6 +31,8 @@ export type ScopeResult = {
   status: 'ok' | 'failed' | 'skipped'
   reason?: string
   fetched: number
+  /** false when the scope hit a page cap with rows remaining, or did not run to completion. */
+  complete: boolean
   postings: NormalizedPosting[]
 }
 

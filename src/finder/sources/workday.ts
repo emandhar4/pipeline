@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { Http } from '../http'
 import type { BoardCompany, NormalizedPosting, ScopeResult } from '../types'
-import { SHAPE_ERROR, buildPosting, rec, scopeFailed, scopeOk, str } from './build'
+import { SHAPE_ERROR, buildPosting, rec, scopeFailed, scopeOk, str, tooManyRejected } from './build'
 
 const shape = z.looseObject({ jobPostings: z.array(z.unknown()) })
 
@@ -39,11 +39,13 @@ export async function fetchWorkday(http: Http, c: BoardCompany, scope: string): 
   }
   const endpoint = url(host, tenant, site)
   if (!(await http.robotsAllows(endpoint))) {
-    return { scope, source: 'workday', companyId: c.id, status: 'skipped', reason: 'robots.txt disallows', fetched: 0, postings: [] }
+    return { scope, source: 'workday', companyId: c.id, status: 'skipped', reason: 'robots.txt disallows', fetched: 0, complete: false, postings: [] }
   }
   const seen = new Set<string>()
   const postings: NormalizedPosting[] = []
   let fetched = 0
+  let rejected = 0
+  let complete = true
   for (const searchText of SEARCHES) {
     for (let page = 0; page < MAX_PAGES; page++) {
       const res = await http.postJson<unknown>(endpoint, { appliedFacets: {}, limit: PAGE, offset: page * PAGE, searchText })
@@ -56,7 +58,11 @@ export async function fetchWorkday(http: Http, c: BoardCompany, scope: string): 
         const r = rec(item)
         const path = str(r.externalPath)
         const title = str(r.title)
-        if (!path || !title || seen.has(path)) continue
+        if (!path || !title) {
+          rejected++
+          continue
+        }
+        if (seen.has(path)) continue
         seen.add(path)
         const applyUrl = `https://${host}/en-US/${site}${path}`
         postings.push(
@@ -72,7 +78,9 @@ export async function fetchWorkday(http: Http, c: BoardCompany, scope: string): 
         )
       }
       if (rows.length < PAGE) break
+      if (page === MAX_PAGES - 1) complete = false // full last page: more rows remain
     }
   }
-  return scopeOk(scope, 'workday', c.id, fetched, postings)
+  if (tooManyRejected(postings.length, rejected)) return scopeFailed(scope, 'workday', c.id, SHAPE_ERROR)
+  return scopeOk(scope, 'workday', c.id, fetched, postings, complete)
 }

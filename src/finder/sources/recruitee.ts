@@ -1,20 +1,25 @@
 import { z } from 'zod'
 import type { BoardCompany, NormalizedPosting } from '../types'
+import type { Parsed } from './build'
 import { buildPosting, cents, num, periodFrom, rec, str, toDate } from './build'
 
 export const shape = z.looseObject({ offers: z.array(z.unknown()) })
 
 export const url = (c: BoardCompany) => `https://${encodeURIComponent(c.token)}.recruitee.com/api/offers/`
 
-export function parse(c: BoardCompany, data: z.infer<typeof shape>): NormalizedPosting[] {
+export function parse(c: BoardCompany, data: z.infer<typeof shape>): Parsed {
   const out: NormalizedPosting[] = []
+  let rejected = 0
   for (const item of data.offers) {
     const r = rec(item)
     const status = str(r.status)
     if (status && status !== 'published') continue
     const id = r.id !== undefined ? String(r.id) : undefined
     const title = str(r.title)
-    if (!id || !title) continue
+    if (!id || !title) {
+      rejected++
+      continue
+    }
     const locs = Array.isArray(r.locations) ? r.locations.map((l) => str(rec(l).location) ?? str(rec(l).name)) : []
     const locations = [...new Set([str(r.location), ...locs].filter((x): x is string => !!x))]
     const sal = rec(r.salary)
@@ -35,5 +40,5 @@ export function parse(c: BoardCompany, data: z.infer<typeof shape>): NormalizedP
       }),
     )
   }
-  return out
+  return { postings: out, rejected }
 }
