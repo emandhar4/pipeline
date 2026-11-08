@@ -1,38 +1,16 @@
-import { expect, test, type Page } from '@playwright/test';
-import { adminClient, createTestUser, deleteTestUser } from '../integration/helpers';
+import { expect, test } from '@playwright/test';
+import { markOnboarded, signIn, userPool, type TestUser } from './helpers';
 
-type TestUser = { id: string; email: string };
-const users: TestUser[] = [];
+const pool = userPool();
 
+/** These tests cover auth, not onboarding, so their users start onboarded. */
 async function newUser(tag: string): Promise<TestUser> {
-  const { id, email } = await createTestUser(tag);
-  users.push({ id, email });
-  return { id, email };
+  const user = await pool.newUser(tag);
+  await markOnboarded(user.id);
+  return user;
 }
 
-async function magicLinkHash(email: string): Promise<string> {
-  const { data, error } = await adminClient().auth.admin.generateLink({
-    type: 'magiclink',
-    email,
-  });
-  if (error || !data.properties) throw new Error(`generateLink failed: ${error?.message}`);
-  return data.properties.hashed_token;
-}
-
-async function signIn(page: Page, email: string, next = '/dashboard') {
-  const hash = await magicLinkHash(email);
-  await page.goto(
-    `/auth/confirm?token_hash=${encodeURIComponent(hash)}&type=magiclink&next=${encodeURIComponent(next)}`,
-  );
-}
-
-test.afterAll(async () => {
-  const errors: unknown[] = [];
-  for (const u of users.splice(0)) {
-    await deleteTestUser(u.id, u.email).catch((e: unknown) => errors.push(e));
-  }
-  if (errors.length) throw new AggregateError(errors, 'e2e test user cleanup failed');
-});
+test.afterAll(() => pool.cleanup());
 
 test('signed-out user is sent to login and back', async ({ page }) => {
   await page.goto('/dashboard');

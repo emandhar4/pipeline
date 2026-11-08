@@ -23,7 +23,11 @@ describe('step2Schema', () => {
   const f = (label: string, weight: 'primary' | 'secondary') => ({ category_slug: null, label, weight });
   it('rejects zero fields and all-secondary fields', () => {
     expect(step2Schema.safeParse({ ...base2, fields: [] }).success).toBe(false);
-    expect(step2Schema.safeParse({ ...base2, fields: [f('A', 'secondary')] }).success).toBe(false);
+    const allSecondary = step2Schema.safeParse({ ...base2, fields: [f('A', 'secondary')] });
+    expect(allSecondary.success).toBe(false);
+    // The onboarding UI shows this message inline; the e2e test matches it.
+    expect(allSecondary.error?.issues.map((i) => i.message)).toContain('Pick at least one primary field');
+    expect(allSecondary.error?.issues[0].path[0]).toBe('fields');
   });
   it('accepts 1 primary + 1 secondary', () => {
     expect(step2Schema.safeParse({ ...base2, fields: [f('A', 'primary'), f('B', 'secondary')] }).success).toBe(true);

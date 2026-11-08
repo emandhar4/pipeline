@@ -1,0 +1,111 @@
+import { expect, test, type Page } from '@playwright/test';
+import { seasonOptions } from '../../src/lib/onboarding/options';
+import { signIn, userPool, type TestUser } from './helpers';
+
+// Two users for the whole file, to stay clear of the auth rate limit:
+// A finishes onboarding and then edits the profile; B stops after step 1.
+test.describe.configure({ mode: 'serial', timeout: 90_000 });
+
+const pool = userPool();
+let userA: TestUser;
+let userB: TestUser;
+
+test.beforeAll(async () => {
+  userA = await pool.newUser('e2e-onboard-a');
+  userB = await pool.newUser('e2e-onboard-b');
+});
+
+test.afterAll(() => pool.cleanup());
+
+async function fillStep1(page: Page, major = 'Economics') {
+  await page.getByLabel('Student looking for an internship').check();
+  await page.getByLabel('School', { exact: true }).fill('Example State University');
+  await page.getByLabel('Major', { exact: true }).fill(major);
+  await page.getByLabel('Graduation month').fill('2028-05');
+  await page.getByLabel('Citizen or permanent resident').check();
+  await page.getByLabel('Home location', { exact: true }).fill('Columbus, OH');
+  await page.getByLabel('School location', { exact: true }).fill('Athens, OH');
+  await page.getByRole('radio', { name: 'Yes', exact: true }).check();
+  await page.getByLabel('Anywhere').check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+}
+
+function chip(page: Page, name: string) {
+  return page.getByRole('button', { name: new RegExp(`^${name}`) });
+}
+
+test('new user is sent to onboarding and finishes in two steps', async ({ page }) => {
+  await signIn(page, userA.email);
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page.getByText('1 of 2')).toBeVisible();
+
+  await fillStep1(page);
+  await expect(page.getByText('2 of 2')).toBeVisible();
+
+  await chip(page, 'Data Analysis').click();
+  await expect(chip(page, 'Data Analysis')).toHaveAccessibleName(/primary/);
+  await chip(page, 'Supply Chain').click();
+  await chip(page, 'Supply Chain').click();
+  await expect(chip(page, 'Supply Chain')).toHaveAccessibleName(/secondary/);
+  await expect(chip(page, 'Supply Chain')).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByLabel('Prefer', { exact: true }).fill('Healthcare tech');
+  await page.getByLabel('Prefer', { exact: true }).press('Enter');
+  await expect(page.getByRole('button', { name: 'Remove Healthcare tech' })).toBeVisible();
+
+  await page.getByLabel('Season').selectOption(seasonOptions(new Date())[0]);
+  await page.getByRole('button', { name: 'Finish setup' }).click();
+
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
+});
+
+test('resume at step 2', async ({ page }) => {
+  await signIn(page, userB.email);
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await fillStep1(page);
+  await expect(page.getByText('2 of 2')).toBeVisible();
+
+  await page.goto('/dashboard');
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page.getByText('2 of 2')).toBeVisible();
+
+  await page.goto('/onboarding?step=1');
+  await expect(page.getByText('1 of 2')).toBeVisible();
+  await expect(page.getByLabel('Major', { exact: true })).toHaveValue('Economics');
+  await expect(page.getByLabel('Home location', { exact: true })).toHaveValue('Columbus, OH');
+});
+
+test('step 2 requires a primary field', async ({ page }) => {
+  await signIn(page, userB.email, '/onboarding');
+  await expect(page.getByText('2 of 2')).toBeVisible();
+
+  await chip(page, 'Supply Chain').click();
+  await chip(page, 'Supply Chain').click();
+  await page.getByLabel('Season').selectOption(seasonOptions(new Date())[0]);
+  await page.getByRole('button', { name: 'Finish setup' }).click();
+
+  await expect(page.getByText('Pick at least one primary field')).toBeVisible();
+  await expect(page).toHaveURL(/\/onboarding$/);
+  // The chip choice survives the failed submit.
+  await expect(chip(page, 'Supply Chain')).toHaveAccessibleName(/secondary/);
+});
+
+test('profile edits persist', async ({ page }) => {
+  await signIn(page, userA.email, '/profile');
+  await expect(page).toHaveURL(/\/profile$/);
+  const who = page.getByRole('region', { name: 'Who you are' });
+  await expect(who.getByLabel('Major', { exact: true })).toHaveValue('Economics');
+  // Step 2 answers are prefilled too.
+  await expect(chip(page, 'Data Analysis')).toHaveAccessibleName(/primary/);
+
+  await who.getByLabel('Major', { exact: true }).fill('Applied Mathematics');
+  await who.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page).toHaveURL(/\/profile\?saved=1$/);
+  await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page.getByRole('region', { name: 'Who you are' }).getByLabel('Major', { exact: true }),
+  ).toHaveValue('Applied Mathematics');
+});

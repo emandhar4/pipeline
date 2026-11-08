@@ -64,7 +64,7 @@ export const step2Schema = z
         z
           .array(fieldSchema)
           .min(1, 'Pick at least one field')
-          .refine((fs) => fs.some((f) => f.weight === 'primary'), 'Mark at least one field as primary'),
+          .refine((fs) => fs.some((f) => f.weight === 'primary'), 'Pick at least one primary field'),
       ),
     industries: z.array(industrySchema).max(20).transform(normalizeIndustries),
     pay_amount: z.string().max(30),

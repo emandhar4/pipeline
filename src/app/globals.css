@@ -8,6 +8,8 @@
   --accent: #1f5f4a;
   --accent-ink: #ffffff;
   --danger: #a3261d;
+  /* Native controls (date, select, radio) follow the theme. */
+  color-scheme: light dark;
 }
 
 @theme inline {
@@ -61,5 +63,88 @@ body {
   }
   .btn-secondary {
     @apply inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-medium hover:border-foreground/40 disabled:opacity-60;
+  }
+  :where(.btn-primary, .btn-secondary, .chip, .choice, .segment label, .nav-link):focus-visible,
+  :where(.choice, .segment label):has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Header nav: quiet text; the current page gets an accent rule on the header's edge. */
+  .nav-link {
+    @apply flex h-full cursor-pointer items-center border-b-2 border-transparent pt-0.5 text-sm text-muted hover:text-foreground;
+  }
+  .nav-link[aria-current="page"] {
+    @apply border-accent text-foreground;
+  }
+
+  .hint {
+    @apply text-sm text-muted;
+  }
+  .field-error {
+    @apply text-sm text-danger;
+  }
+
+  /* A radio row: the native control stays visible, the row lights up when chosen. */
+  .choice {
+    @apply flex cursor-pointer items-start gap-3 rounded-md border border-line px-3 py-2.5 text-sm leading-5 hover:border-foreground/30 has-checked:border-accent has-checked:bg-accent/5;
+  }
+  .choice input {
+    @apply mt-0.5 shrink-0;
+    accent-color: var(--accent);
+  }
+
+  /*
+   * Field chips cycle off -> primary -> secondary. The dot borrows the wordmark's mark:
+   * solid for primary, a ring for secondary, absent for off.
+   */
+  .chip {
+    @apply inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-line px-3.5 text-sm text-muted transition-colors select-none hover:border-foreground/30 hover:text-foreground;
+  }
+  .chip[data-state="primary"] {
+    @apply border-accent bg-accent font-medium text-(--accent-ink) hover:text-(--accent-ink);
+  }
+  .chip[data-state="secondary"] {
+    @apply border-accent bg-accent/8 text-foreground;
+  }
+  .chip-dot {
+    @apply inline-block size-2 shrink-0 rounded-full;
+  }
+  .chip-dot[data-state="primary"] {
+    background: currentColor;
+  }
+  .chip .chip-dot[data-state="primary"] {
+    background: var(--accent-ink);
+  }
+  #chip-legend .chip-dot[data-state="primary"] {
+    background: var(--accent);
+  }
+  .chip-dot[data-state="secondary"] {
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  .chip-dot[data-state="off"] {
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .chip .chip-dot[data-state="off"] {
+    display: none;
+  }
+  .chip-add {
+    @apply inline-flex h-9 items-center gap-2 rounded-full border border-dashed border-line px-3.5 text-sm text-muted focus-within:border-accent focus-within:text-foreground;
+  }
+
+  /* An industry tag; avoided ones are struck through so the two lists read apart. */
+  .tag {
+    @apply inline-flex h-8 items-center gap-1.5 rounded-full border border-line pr-2 pl-3 text-sm;
+  }
+  .tag[data-pref="avoid"] {
+    @apply text-muted line-through decoration-danger/60;
+  }
+
+  /* A two-way toggle built from radios. */
+  .segment {
+    @apply inline-flex h-10 rounded-md border border-line p-0.5 text-sm;
+  }
+  .segment label {
+    @apply grid cursor-pointer place-items-center rounded-[5px] px-3 text-muted has-checked:bg-foreground has-checked:text-background;
   }
 }
