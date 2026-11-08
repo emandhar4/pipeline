@@ -72,8 +72,9 @@ Three panels, readable in seconds:
 3. **Pipeline health** — funnel by stage (applied → screened → interviewed → final → offer), cold vs. referral conversion rates, and what's aging out.
 
 ### 3.2 Onboarding (in this order)
-Steps 1 and 2 are the fast path (~2 minutes); search starts after step 2. Steps 3–6 can be done later from the profile and show as Today items until done.
-1. **Who you are:** career stage, school, major, graduation date, work authorization, home location, school location, school in-state or out-of-state, willingness to relocate. These set the search regions (home region, school region, or both) and grad-window eligibility.
+Step 0 is optional and Steps 1 and 2 are the fast path (~2 minutes); search starts after step 2. Steps 3–6 can be done later from the profile and show as Today items until done.
+0. **Resume (optional):** upload a PDF resume to private storage. Text is extracted server-side with deterministic keyword matching (no LLM yet) to pre-fill school, major, graduation date, location and suggested fields; the user reviews everything before saving. "Skip for now" saves nothing.
+1. **Who you are:** career stage, school, major, graduation date, work authorization, home location, school location, states they can work in (or anywhere in the US), other countries, and how they want to work: in person only, in person or remote, or remote only. In-state status is derived from home and school state. These set the search regions (home region, school region, or both) and grad-window eligibility.
 2. **What you want:** fields picked from a category list (seeded from intern-list.com's categories) plus free text. Each field is **primary** (search hard) or **secondary** (show a few of the best, ranked lower). Plus preferred industries (a score bonus), industries to avoid (exclusion), pay floor, and season/term.
 3. **Your bar (optional):** an offer already held (company, role, pay). Becomes apply/skip rules: a posting must clearly beat it on function, pay and brand. Industry preference is a bonus, not a gate.
 4. **What you have:** resume upload, parsed into an experience bank (roles, projects, metrics, tools), and a "never claim" list.
@@ -147,7 +148,7 @@ Steps 1 and 2 are the fast path (~2 minutes); search starts after step 2. Steps 
 
 Entity list; exact columns are the builder's, except where stated in §3.
 
-- `profiles` (1:1 with auth user): career stage, school, major, grad date, work auth, home/school location, in-state flag, relocate, pay floor, season, alert style, onboarding progress.
+- `profiles` (1:1 with auth user): career stage, school, major, grad date, work auth, home/school state, in-state flag (derived), school_id, major_cip, work_states, work_anywhere_us, work_countries, work_style, pay floor, season, alert style, onboarding progress.
 - `profile_fields`: field/category, free-text label, weight (`primary` | `secondary`).
 - `profile_industries`: industry, preference (`prefer` | `avoid`).
 - `bars`: held offer (company, role, pay) and the derived rules.

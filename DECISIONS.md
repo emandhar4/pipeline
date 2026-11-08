@@ -163,15 +163,34 @@ Phase 2 uses real data only: no fictional seed rows in shared tables. The dashbo
 
 ## Phase 3 decisions (open)
 
-- Structured regions (country plus subdivision) and an open-to-remote preference, replacing free-text locations (I3).
+- ~~Structured regions (country plus subdivision) and an open-to-remote preference, replacing free-text locations (I3).~~ Resolved in Phase 2b (states, countries and `work_style`).
 - Season vocabulary (term plus year) and whether a user may pick more than one season (M7).
 - A "search requested" signal, and selecting users to search by "has a primary field and a season" instead of `onboarding_step` (M8).
 
-## Phase 2b: onboarding UX (decided 2026-11-08, not yet built)
+## Phase 2b: onboarding UX (decided and built 2026-11-08)
 
-User feedback after trying Phase 2 onboarding. Agreed fixes, to be planned in `docs/superpowers/plans/` before building:
+User feedback after trying Phase 2 onboarding. The agreed fixes, as built:
 
 1. **School and major type-ahead.** Comboboxes that narrow as you type. Schools come from the public US Dept. of Education College Scorecard list, seeded into the existing global `schools` table. Majors come from a trimmed CIP program list. Both have a "not listed, use what I typed" fallback.
 2. **Concrete relocation.** Replace `no` / `within_region` / `anywhere` with two questions. "Where can you work?" is a multi-select of US states, with shortcuts for home state, school state and named areas (e.g. Southeast), plus "Anywhere in the US". "How do you want to work?" is one required choice of three, asked above "Where can you work?": In person only (jobs only in the picked places), In person or remote (the picked places plus remote jobs anywhere in the US), or Remote only (remote jobs anywhere in the US). Stored as `profiles.work_style` (`in_person` / `either` / `remote_only`), which replaced the unreleased `open_to_remote` boolean in migration 0850. In person and either need at least one place (a state, Anywhere in the US, or a country); Remote only hides the place picker and saves no places. "Anywhere" means US only, and non-US work requires adding a country explicitly. This resolves open item I3 (structured regions).
 3. **Resume-first onboarding.** The optional first step is uploading a resume (PDF). It goes to a private Supabase Storage bucket with RLS keyed to `auth.uid()`. Text is extracted server-side to prefill school, major, grad date and location. Primary and secondary fields are suggested from the resume, and the user reviews everything before saving.
    - **Ruling (user):** use deterministic **keyword matching** for now (text extraction plus a keyword-to-category map), with no API cost. Add an Anthropic API key (Claude Haiku, server-only, with a monthly cap) **at the very end of the build** to upgrade resume reading.
+
+### Phase 2b implementation decisions
+
+- **Named areas** are the BEA regions (New England, Mid-Atlantic, Great Lakes, Plains, Southeast, and so on), with "Mid-Atlantic" and "West Coast, Alaska and Hawaii" as the labels (`AREAS` in `src/lib/onboarding/regions.ts`).
+- **50 states plus DC only.** Territories (PR, GU and so on) are a known gap: they are not selectable states, and `work_countries` rejects US and territory codes.
+- **`in_state_school` is derived** from home state and school state, and the question was removed from onboarding. The school-state toggle is hidden when it equals the home state. "Outside the US" and "Choose..." both store a null home/school state (not remembered after reload).
+- **Expand/contract for `relocate`.** Migration 0800 added the structured columns and backfilled from `relocate`; 0850 replaced the unreleased `open_to_remote` with the three-way `work_style` (In person only / In person or remote / Remote only); 0900 dropped `relocate` and its enum once nothing read it.
+- **The Scorecard key is a local, one-time seed input only.** `SCORECARD_API_KEY` lives in gitignored `.env.local`, is read only by `scripts/build-schools-seed.ts`, and appears in no CI, Vercel or browser config.
+- **Majors search.** `search_majors` orders by `word_similarity` then `length(title)`. The majors seed drops only Action "Deleted" and "Moved to" rows; "Moved from" rows are live 2020 codes.
+- **Keyword reader rules** (`suggestFields` in `src/lib/resume/parse.ts`, using `FIELD_KEYWORDS`): categories are scored by distinct keyword hits. Primary is the top category if it has 3 or more hits. Secondary is up to 2 more categories with 2 or more hits and at least half the primary score. Ties follow the category order.
+- **Parsing details** (`parse.ts`): the education-line regex uses `\bb\.?s\b` / `\bb\.?a\b` so "jobs" and "database" do not count. Season mapping: Spring to 05, Summer to 08, Fall to 12, Winter to 12, "Class of YYYY" to YYYY-05. `processResume` takes an optional `categoryOrder` argument (the action passes the order it already loaded).
+- **Suggestions storage.** Suggestions live on `resumes.suggestions` and reach the profile only through form submit; nothing is written to `profiles` by the reader. Unmatched school phrases are not pre-filled.
+- **Resume step behavior.** The banner counts visible answers only. Step-1 prefill happens only before step 1's first save; step-2 prefill only when no fields are saved, with stale slugs dropped. "Skip for now" saves nothing, so a bare `/onboarding` shows the resume step again until step 1 is saved.
+- **No-LLM check.** `grep -ri anthropic src package.json` hits only the required LLM-UPGRADE comment in `src/lib/resume/reader.ts` ("AnthropicProvider"). There is no Anthropic code, dependency or env var.
+- **LLM-UPGRADE points** (for the API reader at the end of the build):
+  - `src/lib/resume/reader.ts`: swap `resumeReader` for an API-backed reader with the same input and output types.
+  - `src/lib/resume/keyword-reader.ts`: the `suggestFields` call (role and field inference is the main gain).
+  - Extracted text is not stored; if the API reader needs it, re-extract from Storage for now (or store it then).
+- **Known follow-ups.** An upload whose read fails leaves the file in the user's private Storage folder with no `resumes` row. Deleting a real account must also remove its Storage folder (`<uid>/`).
