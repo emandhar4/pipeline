@@ -50,3 +50,17 @@ export function rankToday(tasks: TaskRow[], now: Date): TaskRow[] {
     return kindRank(a.kind) - kindRank(b.kind);
   });
 }
+
+export type Nudge = { text: string; href: string };
+
+/**
+ * A derived Today item (not a `tasks` row) asking a user with no uploaded resume to add one:
+ * on the profile once setup is done, on the onboarding resume step before.
+ */
+export function resumeNudge({ hasResume, setupDone }: { hasResume: boolean; setupDone: boolean }): Nudge | null {
+  if (hasResume) return null;
+  return {
+    text: 'Add your resume so Pipeline can suggest answers and fields.',
+    href: setupDone ? '/profile#resume' : '/onboarding?step=resume',
+  };
+}

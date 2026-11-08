@@ -10,3 +10,10 @@ export const RESUME_MESSAGES = {
   no_text:
     "We couldn't find any text in that PDF (it may be a scanned image). Skip this step and fill in your answers by hand.",
 } as const;
+
+/** The same message without the "skip this step" advice, for uploads outside onboarding. */
+export function withoutSkip(message: string): string {
+  return message
+    .replace(/, or skip this step\.$/, '.')
+    .replace(/Skip this step and fill in/, 'Fill in');
+}

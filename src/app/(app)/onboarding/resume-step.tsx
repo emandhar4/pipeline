@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useSyncExternalStore, useTransition } from 'react';
-import { RESUME_MESSAGES, UPLOAD_FAILED } from '@/lib/resume/messages';
+import { RESUME_MESSAGES, UPLOAD_FAILED, withoutSkip } from '@/lib/resume/messages';
 import { newResumePath, RESUME_BUCKET, RESUME_MAX_BYTES } from '@/lib/resume/paths';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { FormMessage } from './form-parts';
@@ -28,14 +28,26 @@ async function checkFile(file: File): Promise<string | null> {
 }
 
 /**
- * Optional first onboarding step: upload a PDF resume to the user's own storage folder, have
- * the server read it, then go on to step 1 with the answers pre-filled. Nothing is saved to the
- * profile here.
+ * Upload a PDF resume to the user's own storage folder and have the server read it. Nothing is
+ * saved to the profile here. In onboarding (the optional first step) it then goes on to step 1;
+ * on the profile it reloads the page, where the suggestions show as hints next to the answers.
  */
-export function ResumeStep({ userId }: { userId: string }) {
+export function ResumeStep({
+  userId,
+  mode,
+  hasResume = false,
+}: {
+  userId: string;
+  mode: 'onboarding' | 'profile';
+  /** The user already has a read resume, so the control offers to replace it. */
+  hasResume?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string>();
+  const [message, setMessageRaw] = useState<string>();
+  // "Skip this step" only makes sense in onboarding.
+  const setMessage = (m: string | undefined) =>
+    setMessageRaw(m && mode === 'profile' ? withoutSkip(m) : m);
   const [dragging, setDragging] = useState(false);
   const hydrated = useHydrated();
   const busy = pending || !hydrated;
@@ -62,7 +74,14 @@ export function ResumeStep({ userId }: { userId: string }) {
         setMessage(result.message);
         return;
       }
-      startTransition(() => router.push('/onboarding?step=1'));
+      startTransition(() => {
+        if (mode === 'onboarding') {
+          router.push('/onboarding?step=1');
+        } else {
+          router.push('/profile?resume=1#who-heading');
+          router.refresh();
+        }
+      });
     });
   }
 
@@ -109,8 +128,14 @@ export function ResumeStep({ userId }: { userId: string }) {
         ) : (
           <>
             <span className="font-medium">
-              <span className="text-accent underline underline-offset-4">Choose a PDF</span> or drop it
-              here
+              {hasResume ? (
+                <span className="text-accent underline underline-offset-4">Upload a newer resume</span>
+              ) : (
+                <>
+                  <span className="text-accent underline underline-offset-4">Choose a PDF</span> or drop
+                  it here
+                </>
+              )}
             </span>
             <span className="hint">Your resume as a PDF, up to 5 MB. It stays private to you.</span>
           </>
@@ -129,12 +154,14 @@ export function ResumeStep({ userId }: { userId: string }) {
         />
       </label>
 
-      <div className="flex flex-wrap items-center gap-4 border-t border-line pt-6">
-        <Link href="/onboarding?step=1" className="btn-secondary min-w-32">
-          Skip for now
-        </Link>
-        <p className="text-sm text-muted">You can answer everything by hand instead.</p>
-      </div>
+      {mode === 'onboarding' ? (
+        <div className="flex flex-wrap items-center gap-4 border-t border-line pt-6">
+          <Link href="/onboarding?step=1" className="btn-secondary min-w-32">
+            Skip for now
+          </Link>
+          <p className="text-sm text-muted">You can answer everything by hand instead.</p>
+        </div>
+      ) : null}
     </div>
   );
 }

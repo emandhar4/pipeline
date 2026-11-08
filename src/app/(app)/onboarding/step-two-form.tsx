@@ -93,6 +93,7 @@ export function StepTwoForm({
   categories,
   seasons,
   suggested = [],
+  hint,
 }: {
   mode: FormMode;
   values: StepTwoValues;
@@ -100,6 +101,8 @@ export function StepTwoForm({
   seasons: string[];
   /** Category slugs switched on from the user's resume. */
   suggested?: string[];
+  /** The resume's fields when they differ from the saved ones; applied by hand, never saved by itself. */
+  hint?: { text: string; fields: StepTwoValues['fields'] } | null;
 }) {
   const [state, formAction, pending] = useActionState(saveStepTwo.bind(null, mode), {} as FormState);
   const [chips, setChips] = useState(() => initialChips(categories, values.fields));
@@ -108,6 +111,7 @@ export function StepTwoForm({
   const [drafts, setDrafts] = useState<Record<Preference, string>>({ prefer: '', avoid: '' });
   const [payPeriod, setPayPeriod] = useState<PayPeriod>(values.pay_period);
   const [season, setSeason] = useState(values.season);
+  const [hintUsed, setHintUsed] = useState(false);
   const errors = state.errors ?? {};
   const [draftState, setPendingErrors] = useState<{ errors: Record<string, string> }>({ errors: {} });
   const draftErrors = draftState.errors;
@@ -129,6 +133,18 @@ export function StepTwoForm({
 
   function cycle(key: string) {
     setChips((cs) => cs.map((c) => (c.key === key ? { ...c, state: NEXT[c.state] } : c)));
+  }
+
+  // The category chips take the resume's weights (others off); fields the user added stay.
+  function applySuggestedFields(fields: StepTwoValues['fields']) {
+    setChips((cs) =>
+      cs.map((c) =>
+        c.category_slug === null
+          ? c
+          : { ...c, state: fields.find((f) => f.category_slug === c.category_slug)?.weight ?? 'off' },
+      ),
+    );
+    setHintUsed(true);
   }
 
   function addOwn() {
@@ -230,6 +246,28 @@ export function StepTwoForm({
             <span>Off</span>
           </span>
         </div>
+
+        {hint && !hintUsed ? (
+          <p className="resume-hint">
+            <span id="fields-resume-hint">
+              Resume suggests: <span className="text-foreground">{hint.text}</span>
+            </span>
+            <button
+              type="button"
+              className="btn-secondary btn-small"
+              aria-describedby="fields-resume-hint"
+              onClick={() => applySuggestedFields(hint.fields)}
+            >
+              Use these
+            </button>
+          </p>
+        ) : null}
+        {/* Mounted with the hint, so the change is announced. */}
+        {hint ? (
+          <p role="status" className={hintUsed ? 'hint' : 'sr-only'}>
+            {hintUsed ? 'Fields set from your resume. Save to keep them.' : ''}
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           {chips.map((c) => (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rankToday, type TaskRow } from '@/lib/dashboard/today';
+import { rankToday, resumeNudge, type TaskRow } from '@/lib/dashboard/today';
 
 const now = new Date('2026-11-08T12:00:00Z');
 const day = 86_400_000;
@@ -68,5 +68,21 @@ describe('rankToday', () => {
       'onboarding',
       'other',
     ]);
+  });
+});
+
+describe('resumeNudge', () => {
+  it('is null when the user has an uploaded resume', () => {
+    expect(resumeNudge({ hasResume: true, setupDone: true })).toBeNull();
+    expect(resumeNudge({ hasResume: true, setupDone: false })).toBeNull();
+  });
+
+  it('points to the profile once setup is done, and to the resume step before', () => {
+    const text = 'Add your resume so Pipeline can suggest answers and fields.';
+    expect(resumeNudge({ hasResume: false, setupDone: true })).toEqual({ text, href: '/profile#resume' });
+    expect(resumeNudge({ hasResume: false, setupDone: false })).toEqual({
+      text,
+      href: '/onboarding?step=resume',
+    });
   });
 });

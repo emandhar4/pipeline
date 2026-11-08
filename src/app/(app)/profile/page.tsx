@@ -3,40 +3,83 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { getOnboardingState } from '@/lib/onboarding/profile';
-import { loadCategories, seasonsFor, stepOneValues, stepTwoValues } from '../onboarding/data';
+import {
+  latestResume,
+  loadCategories,
+  seasonsFor,
+  stepOneValues,
+  stepTwoValues,
+} from '../onboarding/data';
+import { stepOneHints, stepTwoHint } from '../onboarding/prefill';
+import { ResumeStep } from '../onboarding/resume-step';
 import { StepOneForm } from '../onboarding/step-one-form';
 import { StepTwoForm } from '../onboarding/step-two-form';
 
 export const metadata: Metadata = { title: 'Profile · Pipeline' };
 
+const readFormat = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+function Banner({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      role="status"
+      className="mb-10 flex items-center gap-2 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-sm"
+    >
+      <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
+      {children}
+    </p>
+  );
+}
+
 async function ProfileForms({ searchParams }: Pick<PageProps<'/profile'>, 'searchParams'>) {
-  await getCurrentUser();
-  const [params, state, categories] = await Promise.all([
+  const { id: userId } = await getCurrentUser();
+  const [params, state, categories, resume] = await Promise.all([
     searchParams,
     getOnboardingState(),
     loadCategories(),
+    latestResume(),
   ]);
   // The profile edits finished answers; an unfinished setup goes back to onboarding.
   if (state.step < 2) redirect('/onboarding');
+  const one = stepOneValues(state);
   const two = stepTwoValues(state);
+  const suggestions = resume?.suggestions ?? null;
 
   return (
     <>
-      {params.saved === '1' ? (
-        <p
-          role="status"
-          className="mb-10 flex items-center gap-2 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-sm"
-        >
-          <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
-          Saved
-        </p>
+      {params.saved === '1' ? <Banner>Saved</Banner> : null}
+      {params.resume === '1' && resume ? (
+        <Banner>We read your resume. Its suggestions are shown next to your answers below.</Banner>
       ) : null}
 
-      <section aria-labelledby="who-heading" className="flex flex-col gap-8">
-        <h2 id="who-heading" className="text-lg font-semibold tracking-tight">
+      <section id="resume" aria-labelledby="resume-heading" className="flex flex-col gap-4">
+        <h2 id="resume-heading" className="text-lg font-semibold tracking-tight">
+          Resume
+        </h2>
+        <p className="max-w-prose text-sm text-muted">
+          {resume
+            ? `Last read ${readFormat.format(new Date(resume.readAt))}.`
+            : 'Upload your resume and Pipeline suggests answers from it. Nothing changes until you save.'}
+        </p>
+        <ResumeStep userId={userId} mode="profile" hasResume={!!resume} />
+      </section>
+
+      <section aria-labelledby="who-heading" className="mt-16 flex flex-col gap-8">
+        <h2 id="who-heading" className="scroll-mt-6 text-lg font-semibold tracking-tight">
           Who you are
         </h2>
-        <StepOneForm mode="profile" values={stepOneValues(state)} />
+        {/* Keyed by the saved answers so a save clears "Use this" state and badges. */}
+        <StepOneForm
+          key={JSON.stringify(one)}
+          mode="profile"
+          values={one}
+          hints={stepOneHints(one, suggestions, state.step)}
+        />
       </section>
 
       <section aria-labelledby="what-heading" className="mt-16 flex flex-col gap-8">
@@ -44,10 +87,12 @@ async function ProfileForms({ searchParams }: Pick<PageProps<'/profile'>, 'searc
           What you want
         </h2>
         <StepTwoForm
+          key={JSON.stringify(two.fields)}
           mode="profile"
           values={two}
           categories={categories}
           seasons={seasonsFor(two.season)}
+          hint={stepTwoHint(two, suggestions, categories)}
         />
       </section>
     </>

@@ -16,15 +16,16 @@ export async function loadCategories(): Promise<Category[]> {
 }
 
 /**
- * Suggestions from the user's newest uploaded resume, or null when there is none or the
- * stored suggestions do not match the current shape. Reads through the user's RLS client.
+ * The user's newest uploaded resume that has suggestions: the suggestions and when it was read.
+ * Null when there is none or the stored suggestions do not match the current shape. Reads
+ * through the user's RLS client.
  */
-export async function latestResumeSuggestions(): Promise<ResumeSuggestions | null> {
+export async function latestResume(): Promise<{ suggestions: ResumeSuggestions; readAt: string } | null> {
   await getCurrentUser();
   const client = await createClient();
   const { data, error } = await client
     .from('resumes')
-    .select('suggestions')
+    .select('suggestions, created_at')
     .eq('kind', 'uploaded')
     .not('suggestions', 'is', null)
     .order('created_at', { ascending: false })
@@ -33,7 +34,12 @@ export async function latestResumeSuggestions(): Promise<ResumeSuggestions | nul
   if (error) throw new Error(`read resumes failed: ${error.message}`);
   if (!data) return null;
   const parsed = resumeSuggestionsSchema.safeParse(data.suggestions);
-  return parsed.success ? parsed.data : null;
+  return parsed.success ? { suggestions: parsed.data, readAt: data.created_at } : null;
+}
+
+/** Suggestions from the user's newest uploaded resume, or null (see `latestResume`). */
+export async function latestResumeSuggestions(): Promise<ResumeSuggestions | null> {
+  return (await latestResume())?.suggestions ?? null;
 }
 
 export function stepOneValues({ profile }: OnboardingState): StepOneValues {

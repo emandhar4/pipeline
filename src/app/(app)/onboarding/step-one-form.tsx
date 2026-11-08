@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useActionState, useRef, useState } from 'react';
+import { startTransition, useActionState, useEffect, useRef, useState } from 'react';
 import { CAREER_STAGES, WORK_AUTH, WORK_STYLES } from '@/lib/onboarding/options';
 import { US_STATES, stateFromLocation } from '@/lib/onboarding/regions';
 import { saveStepOne, type FormMode, type FormState } from './actions';
@@ -15,9 +15,10 @@ import {
   TextField,
   badgeId,
   errorId,
+  type ResumeHintProps,
 } from './form-parts';
 import { findMajors, findSchools } from './lookup-actions';
-import { answersFilled } from './prefill';
+import { answersFilled, type StepOneHint, type StepOneHints } from './prefill';
 import { useFocusOnError } from './use-focus-on-error';
 import { WhereCanYouWork } from './where-can-you-work';
 
@@ -100,13 +101,23 @@ export function StepOneForm({
   mode,
   values,
   fromResume = [],
+  hints = {},
 }: {
   mode: FormMode;
   values: StepOneValues;
   /** Fields pre-filled from the user's resume; each shows a badge. */
   fromResume?: string[];
+  /** What the resume says where it differs from a saved answer; applied by hand, never saved by itself. */
+  hints?: StepOneHints;
 }) {
   const [state, formAction, pending] = useActionState(saveStepOne.bind(null, mode), {} as FormState);
+  // Values put in by "Use this". Uncontrolled fields remount (new key) to show them.
+  const [overrides, setOverrides] = useState<Partial<StepOneValues>>({});
+  const [remounts, setRemounts] = useState<Record<string, number>>({});
+  const [usedHints, setUsedHints] = useState<string[]>([]);
+  const [applied, setApplied] = useState<string[]>([]);
+  const [focusId, setFocusId] = useState<string>();
+  const v = { ...values, ...overrides };
   const [schoolLoc, setSchoolLoc] = useState(values.school_location);
   const [homeState, setHomeState] = useState(values.home_state);
   const [schoolState, setSchoolState] = useState(values.school_state);
@@ -114,8 +125,33 @@ export function StepOneForm({
   const errors = state.errors ?? {};
   const formRef = useRef<HTMLFormElement>(null);
   useFocusOnError(formRef, state, Object.keys(errors).length > 0 || !!state.message);
-  const badge = (name: keyof StepOneValues) => (fromResume.includes(name) ? FROM_RESUME : undefined);
+  const badge = (name: keyof StepOneValues) =>
+    fromResume.includes(name) || applied.includes(name) ? FROM_RESUME : undefined;
   const filled = answersFilled(fromResume);
+
+  // The "Use this" button goes away once used, so focus moves to the field it filled.
+  useEffect(() => {
+    if (focusId) document.getElementById(focusId)?.focus();
+  }, [focusId, remounts]);
+
+  function applyHint(key: keyof StepOneHints, hint: StepOneHint) {
+    const { set } = hint;
+    setOverrides((o) => ({ ...o, ...set }));
+    if (set.school_location !== undefined) setSchoolLoc(set.school_location);
+    if (set.school_state !== undefined) setSchoolState(set.school_state);
+    if (set.home_state !== undefined) setHomeState(set.home_state);
+    setRemounts((r) => ({ ...r, [key]: (r[key] ?? 0) + 1 }));
+    setApplied((a) => [...a, ...Object.keys(set)]);
+    setUsedHints((u) => [...u, key]);
+    setFocusId(key);
+  }
+
+  function hintFor(key: keyof StepOneHints): ResumeHintProps | undefined {
+    const hint = hints[key];
+    if (!hint || usedHints.includes(key)) return undefined;
+    return { text: hint.text, onUse: () => applyHint(key, hint) };
+  }
+  const keyFor = (name: string) => `${name}-${remounts[name] ?? 0}`;
 
   // Submitting through onSubmit (not the form action prop) skips React's automatic form
   // reset, so a failed save keeps everything the user typed.
@@ -146,11 +182,12 @@ export function StepOneForm({
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Combobox
+          key={keyFor('school')}
           name="school"
           idName="school_id"
           label="School"
-          defaultText={values.school}
-          defaultId={values.school_id}
+          defaultText={v.school}
+          defaultId={v.school_id}
           search={findSchools}
           allowFreeText
           onPick={(opt) => {
@@ -162,29 +199,34 @@ export function StepOneForm({
           }}
           error={errors.school}
           badge={badge('school')}
+          resumeHint={hintFor('school')}
         />
         <Combobox
+          key={keyFor('major')}
           name="major"
           idName="major_cip"
           label="Major"
-          defaultText={values.major}
-          defaultId={values.major_cip}
+          defaultText={v.major}
+          defaultId={v.major_cip}
           search={findMajors}
           allowFreeText
           error={errors.major}
           badge={badge('major')}
+          resumeHint={hintFor('major')}
         />
       </div>
 
       <TextField
+        key={keyFor('grad_date')}
         name="grad_date"
         label="Graduation month"
         type="month"
         placeholder="YYYY-MM"
         hint="Past or expected. Leave blank if it does not apply."
-        defaultValue={values.grad_date}
+        defaultValue={v.grad_date}
         error={errors.grad_date}
         badge={badge('grad_date')}
+        resumeHint={hintFor('grad_date')}
         className="field sm:max-w-56"
       />
 
@@ -198,12 +240,14 @@ export function StepOneForm({
 
       <div className="grid gap-5 sm:grid-cols-[3fr_2fr]">
         <TextField
+          key={keyFor('home_location')}
           name="home_location"
           label="Home city"
-          defaultValue={values.home_location}
+          defaultValue={v.home_location}
           autoComplete="address-level2"
           error={errors.home_location}
           badge={badge('home_location')}
+          resumeHint={hintFor('home_location')}
           maxLength={200}
         />
         <StateSelect

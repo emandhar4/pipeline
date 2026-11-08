@@ -11,7 +11,7 @@ import {
   stepTwoValues,
 } from './data';
 import { StepMarker } from './form-parts';
-import { prefillStepOne, prefillStepTwo } from './prefill';
+import { prefillStepOne, prefillStepTwo, stepOneHints, stepTwoHint } from './prefill';
 import { ResumeStep } from './resume-step';
 import { StepOneForm } from './step-one-form';
 import { StepTwoForm } from './step-two-form';
@@ -34,6 +34,9 @@ const STEPS = {
   },
 } as const;
 
+const SAVED_ANSWERS_STAY =
+  'Your saved answers stay as they are. Pipeline shows what your resume says next to each one.';
+
 async function Onboarding({ searchParams }: Pick<PageProps<'/onboarding'>, 'searchParams'>) {
   const { id: userId } = await getCurrentUser();
   const [params, state, suggestions] = await Promise.all([
@@ -51,12 +54,16 @@ async function Onboarding({ searchParams }: Pick<PageProps<'/onboarding'>, 'sear
   else step = params.step === '1' || state.step < 1 ? 1 : 2;
 
   let form: React.ReactNode;
+  let intro: string = STEPS[step].intro;
   if (step === 0) {
-    form = <ResumeStep userId={userId} />;
+    form = <ResumeStep userId={userId} mode="onboarding" />;
+    if (state.step >= 1) intro += ' ' + SAVED_ANSWERS_STAY;
   } else if (step === 1) {
-    // Only before step 1 is first saved: after that a blank answer was left blank on purpose.
+    // Only before step 1 is first saved: after that a blank answer was left blank on purpose,
+    // and the resume's suggestions show as hints the user applies by hand.
     const { values, fromResume } = prefillStepOne(stepOneValues(state), suggestions, state.step);
-    form = <StepOneForm mode="onboarding" values={values} fromResume={fromResume} />;
+    const hints = stepOneHints(values, suggestions, state.step);
+    form = <StepOneForm mode="onboarding" values={values} fromResume={fromResume} hints={hints} />;
   } else {
     const categories = await loadCategories();
     const { values, suggested } = prefillStepTwo(stepTwoValues(state), suggestions, categories);
@@ -67,15 +74,16 @@ async function Onboarding({ searchParams }: Pick<PageProps<'/onboarding'>, 'sear
         categories={categories}
         seasons={seasonsFor(values.season)}
         suggested={suggested}
+        hint={stepTwoHint(values, suggestions, categories)}
       />
     );
   }
 
   return (
     <>
-      <StepMarker step={step} />
+      <StepMarker step={step} savedStep={state.step} />
       <h1 className="mt-5 text-2xl font-semibold tracking-tight sm:text-3xl">{STEPS[step].title}</h1>
-      <p className="mt-2 mb-10 max-w-prose text-sm text-muted">{STEPS[step].intro}</p>
+      <p className="mt-2 mb-10 max-w-prose text-sm text-muted">{intro}</p>
       {form}
     </>
   );

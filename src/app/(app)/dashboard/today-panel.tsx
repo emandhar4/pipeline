@@ -1,5 +1,8 @@
+import Link from 'next/link';
 import { getTasks } from '@/lib/dashboard/queries';
-import { isOverdue, rankToday, type TaskKind } from '@/lib/dashboard/today';
+import { isOverdue, rankToday, resumeNudge, type TaskKind } from '@/lib/dashboard/today';
+import { getOnboardingState } from '@/lib/onboarding/profile';
+import { latestResume } from '../onboarding/data';
 
 const KIND_LABEL: Record<TaskKind, string> = {
   interview: 'Interview',
@@ -14,9 +17,15 @@ const KIND_LABEL: Record<TaskKind, string> = {
 const dueFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 export async function TodayPanel() {
-  const tasks = await getTasks();
+  const [tasks, resume, onboarding] = await Promise.all([
+    getTasks(),
+    latestResume(),
+    getOnboardingState(),
+  ]);
   const now = new Date();
   const items = rankToday(tasks, now);
+  // Derived, not a task row; it goes away once a resume has been read.
+  const nudge = resumeNudge({ hasResume: !!resume, setupDone: onboarding.step >= 2 });
 
   return (
     <section aria-labelledby="today-title" className="panel">
@@ -46,6 +55,21 @@ export async function TodayPanel() {
           })}
         </ul>
       )}
+      {nudge ? (
+        <ul className={items.length === 0 ? 'mt-3' : 'divide-y divide-line border-t border-line'}>
+          <li className="flex items-baseline gap-3 py-2.5 text-sm">
+            <span className="min-w-0 flex-1">
+              <Link
+                href={nudge.href}
+                className="block font-medium underline decoration-line underline-offset-4 hover:decoration-foreground/40"
+              >
+                {nudge.text}
+              </Link>
+              <span className="text-muted">{KIND_LABEL.onboarding}</span>
+            </span>
+          </li>
+        </ul>
+      ) : null}
     </section>
   );
 }

@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useId, useReducer, useRef } from 'react';
-import { FieldBadge, FieldError, badgeId, errorId } from './form-parts';
+import {
+  FieldBadge,
+  FieldError,
+  ResumeHint,
+  badgeId,
+  errorId,
+  resumeHintId,
+  type ResumeHintProps,
+} from './form-parts';
 
 export type ComboOption = { id: string; label: string; detail?: string };
 
@@ -103,6 +111,7 @@ export function Combobox({
   onPick,
   error,
   badge,
+  resumeHint,
 }: {
   name: string;
   idName?: string;
@@ -115,6 +124,8 @@ export function Combobox({
   onPick?: (opt: ComboOption | null) => void;
   error?: string;
   badge?: string;
+  /** What the user's resume says here, when it differs from the saved answer. */
+  resumeHint?: ResumeHintProps;
 }) {
   const [state, dispatch] = useReducer(
     comboReducer,
@@ -185,6 +196,7 @@ export function Combobox({
   const describedBy = [
     badge ? badgeId(name) : null,
     hint ? `${name}-hint` : null,
+    resumeHint ? resumeHintId(name) : null,
     error ? errorId(name) : null,
   ]
     .filter(Boolean)
@@ -268,6 +280,7 @@ export function Combobox({
           {hint}
         </p>
       ) : null}
+      <ResumeHint name={name} hint={resumeHint} />
       <FieldError name={name} error={error} />
     </div>
   );

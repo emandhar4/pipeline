@@ -1,27 +1,68 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { stepHref } from './steps';
 
 const STEP_NAMES = ['Resume (optional)', 'Who you are', 'What you want'] as const;
 
-/** Three named steps with a bar each; the current one is marked. The resume step is optional. */
-export function StepMarker({ step }: { step: 0 | 1 | 2 }) {
+/**
+ * Three named steps with a bar each; the current one is marked. The resume step is optional.
+ * Other steps are links where `stepHref` allows (step 2 only once step 1 is saved).
+ */
+export function StepMarker({ step, savedStep }: { step: 0 | 1 | 2; savedStep: number }) {
   return (
     <nav aria-label="Setup progress">
       <ol className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
-        {STEP_NAMES.map((name, n) => (
-          <li
-            key={name}
-            aria-current={n === step ? 'step' : undefined}
-            className={`flex flex-col gap-2 ${n === step ? 'font-medium text-foreground' : 'text-muted'}`}
-          >
-            <span
-              aria-hidden="true"
-              className={`h-1 rounded-full ${n <= step ? 'bg-accent' : 'bg-line'}`}
-            />
-            <span>{name}</span>
-          </li>
-        ))}
+        {STEP_NAMES.map((name, n) => {
+          const href = stepHref(n as 0 | 1 | 2, step, savedStep);
+          return (
+            <li
+              key={name}
+              aria-current={n === step ? 'step' : undefined}
+              className={`flex flex-col gap-2 ${n === step ? 'font-medium text-foreground' : 'text-muted'}`}
+            >
+              <span
+                aria-hidden="true"
+                className={`h-1 rounded-full ${n <= step ? 'bg-accent' : 'bg-line'}`}
+              />
+              {href ? (
+                <Link href={href} className="step-link">
+                  {name}
+                </Link>
+              ) : (
+                <span>{name}</span>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </nav>
+  );
+}
+
+export function resumeHintId(name: string) {
+  return `${name}-resume-hint`;
+}
+
+/** What the user's resume says for a saved answer, with a button that puts it in the field. */
+export type ResumeHintProps = { text: string; onUse: () => void };
+
+/** "Resume says: …" under a field. "Use this" fills the form only; nothing is saved. */
+export function ResumeHint({ name, hint }: { name: string; hint?: ResumeHintProps }) {
+  if (!hint) return null;
+  return (
+    <p className="resume-hint">
+      <span id={resumeHintId(name)}>
+        Resume says: <span className="text-foreground">{hint.text}</span>
+      </span>
+      <button
+        type="button"
+        className="btn-secondary btn-small"
+        aria-describedby={resumeHintId(name)}
+        onClick={hint.onUse}
+      >
+        Use this
+      </button>
+    </p>
   );
 }
 
@@ -96,6 +137,7 @@ export function TextField({
   hint,
   error,
   badge,
+  resumeHint,
   ...input
 }: {
   name: string;
@@ -103,10 +145,12 @@ export function TextField({
   hint?: string;
   error?: string;
   badge?: string;
+  resumeHint?: ResumeHintProps;
 } & React.InputHTMLAttributes<HTMLInputElement>) {
   const describedBy = [
     badge ? badgeId(name) : null,
     hint ? `${name}-hint` : null,
+    resumeHint ? resumeHintId(name) : null,
     error ? errorId(name) : null,
   ]
     .filter(Boolean)
@@ -132,6 +176,7 @@ export function TextField({
           {hint}
         </p>
       ) : null}
+      <ResumeHint name={name} hint={resumeHint} />
       <FieldError name={name} error={error} />
     </div>
   );
