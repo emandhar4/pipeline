@@ -18,13 +18,19 @@ export function stepOneValues({ profile }: OnboardingState): StepOneValues {
   return {
     career_stage: profile.career_stage ?? '',
     school: profile.school ?? '',
+    school_id: profile.school_id ?? '',
     major: profile.major ?? '',
+    major_cip: profile.major_cip ?? '',
     grad_date: profile.grad_date ? profile.grad_date.slice(0, 7) : '',
     work_auth: profile.work_auth ?? '',
     home_location: profile.home_location ?? '',
+    home_state: profile.home_state ?? '',
     school_location: profile.school_location ?? '',
-    in_state_school: profile.in_state_school,
-    relocate: profile.relocate ?? '',
+    school_state: profile.school_state ?? '',
+    work_anywhere_us: profile.work_anywhere_us,
+    work_states: profile.work_states,
+    work_countries: profile.work_countries,
+    open_to_remote: profile.open_to_remote,
   };
 }
 

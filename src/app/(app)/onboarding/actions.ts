@@ -3,7 +3,9 @@
 import { redirect } from 'next/navigation';
 import type { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
+import { resolveStepOneLookups } from '@/lib/onboarding/lookups';
 import { saveStep1, saveStep2 } from '@/lib/onboarding/profile';
+import { createClient } from '@/lib/supabase/server';
 import { loadCategories } from './data';
 import { step1Schema, step2Schema } from '@/lib/onboarding/schema';
 
@@ -72,29 +74,45 @@ export async function saveStepOne(
   formData: FormData,
 ): Promise<FormState> {
   await getCurrentUser();
+  const countries = json(formData, 'work_countries');
+  if (!Array.isArray(countries)) return { errors: { work_countries: 'Pick countries from the list' } };
   const input = {
     career_stage: text(formData, 'career_stage'),
     school: text(formData, 'school'),
+    school_id: text(formData, 'school_id'),
     major: text(formData, 'major'),
+    major_cip: text(formData, 'major_cip'),
     grad_date: text(formData, 'grad_date'),
     work_auth: text(formData, 'work_auth'),
     home_location: text(formData, 'home_location'),
+    home_state: text(formData, 'home_state'),
     school_location: text(formData, 'school_location'),
-    in_state_school: yesNo(text(formData, 'in_state_school')),
-    relocate: text(formData, 'relocate'),
+    school_state: text(formData, 'school_state'),
+    work_anywhere_us: text(formData, 'work_anywhere_us') === 'on',
+    work_states: formData.getAll('work_states').filter((v) => typeof v === 'string'),
+    work_countries: countries,
+    open_to_remote: yesNo(text(formData, 'open_to_remote')),
   };
   const parsed = step1Schema.safeParse(input);
   if (!parsed.success) {
     const errors = fieldErrors(parsed.error);
-    // The schema's in-state check only runs once the other fields pass; report it alongside them.
-    if (input.home_location.trim() && input.school_location.trim() && input.in_state_school === null) {
-      errors.in_state_school ??= 'Choose one';
-    }
+    // The schema's cross-field checks only run once the other fields pass; report this one alongside them.
+    if (input.open_to_remote === null) errors.open_to_remote ??= 'Choose one';
     return { errors };
   }
 
+  // A picked school or major must exist; its stored label comes from the database.
+  let resolved: Awaited<ReturnType<typeof resolveStepOneLookups>>;
   try {
-    await saveStep1(parsed.data);
+    resolved = await resolveStepOneLookups(await createClient(), parsed.data);
+  } catch (e) {
+    console.error('[onboarding] resolveStepOneLookups failed', { message: (e as Error).message });
+    return { message: SAVE_FAILED };
+  }
+  if (!resolved.ok) return { errors: resolved.errors };
+
+  try {
+    await saveStep1(resolved.value);
   } catch (e) {
     console.error('[onboarding] saveStep1 failed', { message: (e as Error).message });
     return { message: SAVE_FAILED };

@@ -17,17 +17,33 @@ test.beforeAll(async () => {
 
 test.afterAll(() => pool.cleanup());
 
-async function fillStep1(page: Page, { answerInState = true } = {}) {
+async function fillStep1(page: Page, { pickArea = true } = {}) {
   await page.getByLabel('Student looking for an internship').check();
-  await page.getByLabel('School', { exact: true }).fill('Example State University');
-  await page.getByLabel('Major', { exact: true }).fill('Economics');
+
+  await page.getByRole('combobox', { name: 'School', exact: true }).fill('georgia tech');
+  await page.locator('[role="option"][data-kind="option"]').first().click();
+  await expect(page.getByLabel('School location', { exact: true })).toHaveValue('Atlanta, GA');
+
+  await page.getByRole('combobox', { name: 'Major', exact: true }).fill('Underwater Basket Studies');
+  await page.getByRole('option', { name: 'Use "Underwater Basket Studies"' }).click();
+
   await page.getByLabel('Graduation month').fill('2028-05');
   await page.getByLabel('Citizen or permanent resident').check();
-  await page.getByLabel('Home location', { exact: true }).fill('Columbus, OH');
-  await page.getByLabel('School location', { exact: true }).fill('Athens, OH');
-  if (answerInState) await page.getByRole('radio', { name: 'Yes', exact: true }).check();
-  await page.getByLabel('Anywhere').check();
+  await page.getByLabel('Home city', { exact: true }).fill('Columbus');
+  await page.getByLabel('Home state', { exact: true }).selectOption({ label: 'Ohio' });
+  await expect(page.getByRole('button', { name: 'Home state (OH)' })).toBeVisible();
+
+  if (pickArea) {
+    // Ohio is not added unless "Home state (OH)" is clicked.
+    await page.getByRole('button', { name: 'Southeast', exact: true }).click();
+    await expect(page.getByText('12 states selected')).toBeVisible();
+  }
+  await remote(page).getByLabel('No', { exact: true }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
+}
+
+function remote(page: Page) {
+  return page.getByRole('group', { name: 'Open to remote work?' });
 }
 
 function chip(page: Page, name: string) {
@@ -70,17 +86,7 @@ test('resume at step 2', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page, userB.email);
   await expect(page).toHaveURL(/\/onboarding$/);
-  // The in-state question appears once both locations are filled, and must be answered.
-  await fillStep1(page, { answerInState: false });
-  const inState = page.getByRole('group', { name: 'Is your school in your home state?' });
-  await expect(inState.getByText('Choose one')).toBeVisible();
-  // At 375px the error must be in view, focused, and announced.
-  await expect(inState.getByRole('radio', { name: 'Yes', exact: true })).toBeFocused();
-  await expect(inState.getByText('Choose one')).toBeInViewport();
-  await expect(page.getByText('1 answer needs attention above.')).toBeVisible();
-  await expect(page.getByText('1 of 2')).toBeVisible();
-  await inState.getByRole('radio', { name: 'Yes', exact: true }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await fillStep1(page);
   await expect(page.getByText('2 of 2')).toBeVisible();
 
   await page.goto('/dashboard');
@@ -89,8 +95,44 @@ test('resume at step 2', async ({ page }) => {
 
   await page.goto('/onboarding?step=1');
   await expect(page.getByText('1 of 2')).toBeVisible();
-  await expect(page.getByLabel('Major', { exact: true })).toHaveValue('Economics');
-  await expect(page.getByLabel('Home location', { exact: true })).toHaveValue('Columbus, OH');
+  // The picked school is stored under its database name; the free-text major as typed.
+  await expect(page.getByRole('combobox', { name: 'School', exact: true })).toHaveValue(
+    'Georgia Institute of Technology-Main Campus',
+  );
+  await expect(page.getByRole('combobox', { name: 'Major', exact: true })).toHaveValue(
+    'Underwater Basket Studies',
+  );
+  await expect(page.getByLabel('Home city', { exact: true })).toHaveValue('Columbus');
+  await expect(page.getByLabel('Home state', { exact: true })).toHaveValue('OH');
+  await expect(page.getByLabel('School state', { exact: true })).toHaveValue('GA');
+  await expect(page.getByText('12 states selected')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Southeast', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+});
+
+test('nothing picked and no remote shows the error', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await signIn(page, userB.email, '/onboarding?step=1');
+  await expect(page.getByText('1 of 2')).toBeVisible();
+  // Clear the saved area so nothing is picked.
+  await page.getByRole('button', { name: 'Southeast', exact: true }).click();
+  await expect(page.getByText('None yet')).toBeVisible();
+  await remote(page).getByLabel('No', { exact: true }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  const error = page.getByText('Pick where you can work, or say you are open to remote work.');
+  // At 375px the error must be in view, focused, and announced.
+  await expect(error).toBeVisible();
+  await expect(error).toBeFocused();
+  await expect(error).toBeInViewport();
+  await expect(page.getByText('1 answer needs attention above.')).toBeVisible();
+  await expect(page.getByText('1 of 2')).toBeVisible();
+
+  await remote(page).getByLabel('Yes', { exact: true }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByText('2 of 2')).toBeVisible();
 });
 
 test('step 2 requires a primary field', async ({ page }) => {
@@ -137,18 +179,22 @@ test('profile edits persist', async ({ page }) => {
   await signIn(page, userA.email, '/profile');
   await expect(page).toHaveURL(/\/profile$/);
   const who = page.getByRole('region', { name: 'Who you are' });
-  await expect(who.getByLabel('Major', { exact: true })).toHaveValue('Economics');
+  await expect(who.getByRole('combobox', { name: 'Major', exact: true })).toHaveValue(
+    'Underwater Basket Studies',
+  );
   // Step 2 answers are prefilled too.
   await expect(chip(page, 'Data Analysis')).toHaveAccessibleName(/primary/);
 
-  await who.getByLabel('Major', { exact: true }).fill('Applied Mathematics');
+  await who.getByRole('combobox', { name: 'Major', exact: true }).fill('Applied Mathematics');
   await who.getByRole('button', { name: 'Save changes' }).click();
   await expect(page).toHaveURL(/\/profile\?saved=1$/);
   await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
 
   await page.reload();
   await expect(
-    page.getByRole('region', { name: 'Who you are' }).getByLabel('Major', { exact: true }),
+    page
+      .getByRole('region', { name: 'Who you are' })
+      .getByRole('combobox', { name: 'Major', exact: true }),
   ).toHaveValue('Applied Mathematics');
 });
 
@@ -164,4 +210,31 @@ test('typed but un-added text is saved on submit', async ({ page }) => {
   const after = page.getByRole('region', { name: 'What you want' });
   await expect(after.getByRole('button', { name: 'Remove Tobacco' })).toBeVisible();
   await expect(chip(page, 'Supply chain analytics')).toHaveAccessibleName(/primary/);
+});
+
+test('anywhere in the US overrides states', async ({ page }) => {
+  await signIn(page, userA.email, '/profile');
+  const who = page.getByRole('region', { name: 'Who you are' });
+  await expect(who.getByText('12 states selected')).toBeVisible();
+  await expect(who.getByRole('button', { name: 'Southeast', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+
+  await who.getByRole('button', { name: 'Anywhere in the US' }).click();
+  await expect(who.getByText('Anywhere in the US', { exact: true }).last()).toBeVisible();
+  await who.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page).toHaveURL(/\/profile\?saved=1$/);
+
+  await page.reload();
+  const after = page.getByRole('region', { name: 'Who you are' });
+  const anywhere = after.getByRole('button', { name: 'Anywhere in the US' });
+  await expect(anywhere).toHaveAttribute('aria-pressed', 'true');
+  // While it is on, the state controls are disabled and none of them is posted.
+  await expect(after.getByRole('button', { name: 'Southeast', exact: true })).toBeDisabled();
+  await expect(after.locator('input[name="work_states"]:not(:disabled)')).toHaveCount(0);
+  // The saved state list is empty: switching Anywhere off leaves nothing checked.
+  await anywhere.click();
+  await expect(after.getByText('None yet')).toBeVisible();
+  await expect(after.locator('input[name="work_states"]:checked')).toHaveCount(0);
 });

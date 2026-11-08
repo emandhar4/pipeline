@@ -162,6 +162,11 @@ body {
     @apply inline-flex h-9 items-center gap-2 rounded-full border border-dashed border-line px-3.5 text-sm text-muted focus-within:border-accent focus-within:text-foreground;
   }
 
+  /* "Anywhere in the US" overrides the rest of its row, so it sits apart: dashed until on. */
+  .chip-anywhere[data-state="off"] {
+    @apply border-dashed text-foreground;
+  }
+
   /* An industry tag; avoided ones are struck through so the two lists read apart. */
   .tag {
     @apply inline-flex h-8 items-center gap-1.5 rounded-full border border-line pr-2 pl-3 text-sm;
