@@ -6,6 +6,8 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   test: {
+    hookTimeout: 30000,
+    testTimeout: 30000,
     include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
   },
 });

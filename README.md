@@ -4,6 +4,12 @@ Pipeline is a hosted, multi-user job search website. For each user it finds ever
 
 Signup is **invite-only**: an email can create an account only if it is on the invite list. Nothing is ever auto-applied.
 
+## What works today
+
+- Invite-only sign-in (email link for the owner; Google once its OAuth client is set up).
+- Two-step onboarding at `/onboarding`: who you are, then the fields you want (primary or secondary), industries to prefer or avoid, pay floor and season. Edit it later at `/profile`.
+- The dashboard: Today, New postings worth it, and Pipeline health. Each panel shows your own data or an empty state; the daily finder that fills postings comes next.
+
 ## Stack
 
 Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgres, Auth, Storage); a daily finder on GitHub Actions.

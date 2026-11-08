@@ -8,6 +8,8 @@
   --accent: #1f5f4a;
   --accent-ink: #ffffff;
   --danger: #a3261d;
+  /* Native controls (date, select, radio) follow the theme. */
+  color-scheme: light dark;
 }
 
 @theme inline {
@@ -61,5 +63,179 @@ body {
   }
   .btn-secondary {
     @apply inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-medium hover:border-foreground/40 disabled:opacity-60;
+  }
+  /* A compact button for inline actions, e.g. "Use this" beside a resume hint. */
+  .btn-small {
+    @apply h-7 px-2.5 text-xs;
+  }
+  :where(.btn-primary, .btn-secondary, .chip, .choice, .segment label, .nav-link, .step-link):focus-visible,
+  :where(.choice, .segment label):has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* An onboarding step name the user can go back (or ahead) to. */
+  .step-link {
+    @apply rounded-sm underline decoration-line underline-offset-4 hover:text-foreground hover:decoration-foreground/40;
+  }
+
+  /* "Resume says: …" under a saved answer, with a "Use this" button. */
+  .resume-hint {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted;
+  }
+
+  /* Header nav: quiet text; the current page gets an accent rule on the header's edge. */
+  .nav-link {
+    @apply flex h-full cursor-pointer items-center border-b-2 border-transparent pt-0.5 text-sm text-muted hover:text-foreground;
+  }
+  .nav-link[aria-current="page"] {
+    @apply border-accent text-foreground;
+  }
+
+  .hint {
+    @apply text-sm text-muted;
+  }
+  .field-error {
+    @apply text-sm text-danger;
+  }
+
+  /*
+   * Type-ahead list under a .field. The highlighted row gets the accent rule on its left edge,
+   * echoing the header nav; the free-text row sits apart under a hairline.
+   */
+  .combo-badge {
+    @apply rounded-full border border-line px-2 py-px text-[11px] leading-4 tracking-wide text-muted;
+  }
+  .combo-list {
+    @apply absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-line py-1 shadow-lg shadow-black/5;
+    background: var(--background);
+  }
+  .combo-option {
+    @apply flex cursor-pointer flex-col gap-0.5 border-l-2 border-transparent px-3 py-2 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3;
+  }
+  .combo-option:hover {
+    @apply bg-foreground/4;
+  }
+  .combo-option[aria-selected="true"] {
+    @apply border-accent bg-accent/8;
+  }
+  .combo-option[data-kind="free"] {
+    @apply text-muted;
+  }
+  .combo-option[data-kind="free"]:not(:first-child) {
+    @apply mt-1 border-t border-t-line pt-2.5;
+  }
+  .combo-detail {
+    @apply shrink-0 text-xs text-muted;
+  }
+
+  /* A radio row: the native control stays visible, the row lights up when chosen. */
+  .choice {
+    @apply flex cursor-pointer items-start gap-3 rounded-md border border-line px-3 py-2.5 text-sm leading-5 hover:border-foreground/30 has-checked:border-accent has-checked:bg-accent/5;
+  }
+  .choice input {
+    @apply mt-0.5 shrink-0;
+    accent-color: var(--accent);
+  }
+
+  /*
+   * Field chips cycle off -> primary -> secondary. The dot borrows the wordmark's mark:
+   * solid for primary, a ring for secondary, absent for off.
+   */
+  .chip {
+    @apply inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-line px-3.5 text-sm text-muted transition-colors select-none hover:border-foreground/30 hover:text-foreground;
+  }
+  .chip[data-state="primary"] {
+    @apply border-accent bg-accent font-medium text-(--accent-ink) hover:text-(--accent-ink);
+  }
+  .chip[data-state="secondary"] {
+    @apply border-accent bg-accent/8 text-foreground;
+  }
+  .chip-dot {
+    @apply inline-block size-2 shrink-0 rounded-full;
+  }
+  .chip-dot[data-state="primary"] {
+    background: currentColor;
+  }
+  .chip .chip-dot[data-state="primary"] {
+    background: var(--accent-ink);
+  }
+  #chip-legend .chip-dot[data-state="primary"] {
+    background: var(--accent);
+  }
+  .chip-dot[data-state="secondary"] {
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  .chip-dot[data-state="off"] {
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .chip .chip-dot[data-state="off"] {
+    display: none;
+  }
+  .chip-add {
+    @apply inline-flex h-9 items-center gap-2 rounded-full border border-dashed border-line px-3.5 text-sm text-muted focus-within:border-accent focus-within:text-foreground;
+  }
+
+  /* "Anywhere in the US" overrides the rest of its row, so it sits apart: dashed until on. */
+  .chip-anywhere[data-state="off"] {
+    @apply border-dashed text-foreground;
+  }
+
+  /* An industry tag; avoided ones are struck through so the two lists read apart. */
+  .tag {
+    @apply inline-flex h-8 items-center gap-1.5 rounded-full border border-line pr-2 pl-3 text-sm;
+  }
+  .tag[data-pref="avoid"] {
+    @apply text-muted line-through decoration-danger/60;
+  }
+
+  /* The resume drop target: a dashed sheet that fills in while a file is dragged over it. */
+  .dropzone {
+    @apply flex cursor-pointer flex-col items-center gap-3 rounded-lg border border-dashed border-line px-5 py-10 text-center text-sm transition-[border-color,background-color] hover:border-foreground/30;
+  }
+  .dropzone[data-dragging="true"] {
+    @apply border-solid border-accent bg-accent/5;
+  }
+  .dropzone[aria-disabled="true"] {
+    @apply cursor-progress opacity-70;
+  }
+  .dropzone:has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* A two-way toggle built from radios. */
+  .segment {
+    @apply inline-flex h-10 rounded-md border border-line p-0.5 text-sm;
+  }
+  .segment label {
+    @apply grid cursor-pointer place-items-center rounded-[5px] px-3 text-muted has-checked:bg-foreground has-checked:text-background;
+  }
+}
+
+@layer components {
+  /* Dashboard panels: a heading on a top rule, no boxes. */
+  .panel {
+    @apply border-t border-line pt-4;
+  }
+  .panel-title {
+    @apply text-base font-semibold tracking-tight;
+  }
+  .panel-note {
+    @apply mt-3 max-w-prose text-sm text-muted;
+  }
+  .bar-track {
+    @apply h-2 overflow-hidden rounded-full bg-line;
+  }
+  .bar-fill {
+    @apply h-full rounded-full bg-accent;
+  }
+  .skeleton {
+    @apply animate-pulse rounded bg-line;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+    }
   }
 }

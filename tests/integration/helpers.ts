@@ -63,9 +63,28 @@ export async function createTestUser(
   }
 }
 
+/** Removes every object under resumes/<userId>/ (admin only). */
+export async function removeUserResumeObjects(userId: string): Promise<void> {
+  const bucket = adminClient().storage.from('resumes');
+  // Bounded: a pass that removes nothing (e.g. a nested folder entry) would otherwise loop forever.
+  for (let pass = 0; pass < 50; pass++) {
+    const listed = await bucket.list(userId, { limit: 100 });
+    if (listed.error) throw new Error(`list resumes failed: ${listed.error.message}`);
+    if (listed.data.length === 0) return;
+    const removed = await bucket.remove(listed.data.map((o) => `${userId}/${o.name}`));
+    if (removed.error) throw new Error(`remove resumes failed: ${removed.error.message}`);
+    if (removed.data.length === 0) {
+      throw new Error(`purge of resumes/${userId} removed nothing; entries remain (nested folder?)`);
+    }
+  }
+  throw new Error(`purge of resumes/${userId} did not finish after 50 passes`);
+}
+
 export async function deleteTestUser(id: string, email: string): Promise<void> {
   const admin = adminClient();
   const errors: Error[] = [];
+  // Storage objects first; deleting the user does not cascade into Storage.
+  await removeUserResumeObjects(id);
   const del = await admin.auth.admin.deleteUser(id);
   if (del.error) errors.push(new Error(`deleteUser failed: ${del.error.message}`));
   const inv = await admin.from('invites').delete().eq('email', email.toLowerCase());
