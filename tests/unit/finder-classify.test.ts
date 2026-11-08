@@ -28,6 +28,10 @@ describe('parseLocation', () => {
     ['London, UK', { state: null, country: 'GB', remote: false }],
     ['Toronto, ON, Canada', { state: null, country: 'CA', remote: false }],
     ['Austin, TX, United States', { state: 'TX', country: 'US', remote: false }],
+    ['Atlanta, Georgia', { state: 'GA', country: 'US', remote: false }],
+    ['Austin, TX - Hybrid', { state: 'TX', country: 'US', remote: false }],
+    ['Canada - Remote', { state: null, country: 'CA', remote: true }],
+    ['US - Remote', { state: null, country: 'US', remote: true }],
     ['US', { state: null, country: 'US', remote: false }],
     ['Multiple Locations', { state: null, country: null, remote: false }],
     ['', { state: null, country: null, remote: false }],
@@ -46,6 +50,15 @@ describe('parseLocations', () => {
   });
   it('splits on semicolons and " or "', () => {
     expect(parseLocations(['Austin, TX; Denver, CO or Boston, MA']).states).toEqual(['CO', 'MA', 'TX']);
+  });
+  it('remote option alongside offices', () => {
+    const r = parseLocations(['San Francisco, CA or Remote']);
+    expect(r.states).toEqual(['CA']);
+    expect(r.remote).toBe('remote');
+    expect(parseLocations(['NYC / Remote (US)']).remote).toBe('remote');
+  });
+  it('splits bare slash when both sides have commas', () => {
+    expect(parseLocations(['Austin, TX/Denver, CO']).states).toEqual(['CO', 'TX']);
   });
   it('hybrid', () => {
     expect(parseLocations(['Hybrid - Austin, TX']).remote).toBe('hybrid');
@@ -72,6 +85,13 @@ describe('classifyLevel', () => {
     ['Senior Product Manager', 'experienced'],
     ['Internal Audit Manager', 'experienced'],
     ['Business Analyst', 'unknown'],
+    ['Graduate Software Engineer', 'new_grad'],
+    ['Graduate Analyst', 'new_grad'],
+    ['Campus Hire - Finance', 'new_grad'],
+    ['Class of 2027 Analyst', 'new_grad'],
+    ['Associate Product Manager', 'new_grad'],
+    ['Graduate Intern', 'internship'],
+    ['Graduate School Recruiter', 'unknown'],
   ])('%s', (title, level) => {
     expect(classifyLevel(title)).toBe(level);
   });
@@ -104,6 +124,9 @@ describe('fieldSlugsFromTitle', () => {
     expect(fieldSlugsFromTitle('Technical Recruiter Intern')).toContain('human-resources');
     expect(fieldSlugsFromTitle('Career Fair Coordinator')).not.toContain('healthcare');
     expect(fieldSlugsFromTitle('Intern')).toEqual([]);
+    expect(fieldSlugsFromTitle('Developer Intern')).toContain('software-engineering');
+    expect(fieldSlugsFromTitle('Mechanical Engineer Intern')).toContain('engineering-and-development');
+    expect(fieldSlugsFromTitle('Engineer Intern')).toEqual(['engineering-and-development']);
   });
   it('maps Simplify categories', () => {
     expect(fieldSlugsFromTitle('Intern', 'AI/ML/Data')).toEqual(
@@ -113,6 +136,9 @@ describe('fieldSlugsFromTitle', () => {
     expect(fieldSlugsFromTitle('Intern', 'Quant')).toContain('accounting-and-finance');
     expect(fieldSlugsFromTitle('Intern', 'Product Management')).toContain('product-management');
     expect(fieldSlugsFromTitle('Intern', 'Something Else')).toEqual([]);
+    expect(fieldSlugsFromTitle('Intern', 'Data Science, AI & Machine Learning')).toEqual(
+      expect.arrayContaining(['machine-learning-and-ai', 'data-analysis']),
+    );
   });
   it('keyword map covers exactly the 21 slugs', () => {
     expect(Object.keys(TITLE_FIELD_KEYWORDS).sort()).toEqual([...SLUGS].sort());
@@ -126,6 +152,12 @@ describe('normalizeCompany / normalizeTitle', () => {
     expect(normalizeCompany('Acme Group Holdings Inc')).toBe('acme');
     expect(normalizeCompany('Johnson & Johnson')).toBe('johnson and johnson');
     expect(normalizeCompany('Company')).toBe('company');
+    expect(normalizeCompany("Macy's")).toBe('macys');
+    expect(normalizeCompany('Macy’s')).toBe('macys');
+    expect(normalizeCompany('U.S. Bank')).toBe('us bank');
+    expect(normalizeCompany('US Bank')).toBe('us bank');
+    expect(normalizeCompany('Bain & Co')).toBe('bain');
+    expect(normalizeCompany('AT&T')).toBe('at and t');
   });
   it('normalizes titles', () => {
     expect(normalizeTitle('  Software Engineer, Intern (Summer) ')).toBe('software engineer intern summer');
@@ -143,6 +175,7 @@ describe('canonicalJobKey', () => {
       'https://acme.wd5.myworkdayjobs.com/en-US/External/job/Austin-TX/Intern_R123',
       'workday:acme.wd5:external/job/austin-tx/intern_r123',
     ],
+    ['https://acme.wd5.myworkdayjobs.com/en-US/External', null],
     ['https://example.test/careers', null],
     ['not a url', null],
   ])('%s', (url, expected) => {
@@ -151,7 +184,7 @@ describe('canonicalJobKey', () => {
 });
 
 describe('dedupeKey', () => {
-  const base = { applyUrl: null, title: 'Software Engineer Intern', states: ['CA'], remote: 'onsite' as const };
+  const base = { applyUrl: null, title: 'Software Engineer Intern', states: ['CA'], countries: ['US'], remote: 'onsite' as const };
   it('is stable across company spelling', () => {
     const a = dedupeKey({ ...base, company: 'Acme, Inc.' });
     const b = dedupeKey({ ...base, company: 'ACME Corporation' });
@@ -160,6 +193,10 @@ describe('dedupeKey', () => {
   });
   it('differs by state', () => {
     expect(dedupeKey({ ...base, company: 'Acme' })).not.toBe(dedupeKey({ ...base, company: 'Acme', states: ['NY'] }));
+  });
+  it('differs by country', () => {
+    const b = { ...base, company: 'Acme', states: [] as string[] };
+    expect(dedupeKey({ ...b, countries: ['GB'] })).not.toBe(dedupeKey({ ...b, countries: ['CA'] }));
   });
   it('ignores state order', () => {
     expect(dedupeKey({ ...base, company: 'Acme', states: ['NY', 'CA'] })).toBe(

@@ -49,7 +49,7 @@ export function canonicalJobKey(url: string): string | null {
     const rest = [...seg];
     if (rest[0] && /^[a-z]{2}(-[a-z]{2})?$/i.test(rest[0])) rest.shift();
     if (rest[rest.length - 1]?.toLowerCase() === 'apply') rest.pop();
-    if (rest.length === 0) return null;
+    if (!rest.some((x) => ['job', 'details'].includes(x.toLowerCase()))) return null;
     return `workday:${host.slice(0, -'.myworkdayjobs.com'.length)}:${rest.join('/').toLowerCase()}`;
   }
   return null;
@@ -61,13 +61,14 @@ export function dedupeKey(p: {
   company: string;
   title: string;
   states: string[];
+  countries: string[];
   remote: RemoteKind;
 }): string {
   if (p.applyUrl) {
     const c = canonicalJobKey(p.applyUrl);
     if (c) return c;
   }
-  const loc = `${[...new Set(p.states)].sort().join(',')}:${p.remote}`;
+  const loc = `${[...new Set(p.states)].sort().join(',')}:${[...new Set(p.countries)].sort().join(',')}:${p.remote}`;
   const raw = `${normalizeCompany(p.company)}|${normalizeTitle(p.title)}|${loc}`;
   return `h:${createHash('sha1').update(raw).digest('hex')}`;
 }

@@ -24,7 +24,15 @@ function stripModes(text: string): string {
     if (next === s) break;
     s = next;
   }
-  return s.replace(/\s+(?:remote|hybrid)\s*$/i, '').trim();
+  for (let i = 0; i < 3; i++) {
+    const next = s
+      .replace(/\s*[-–—|:]\s*(?:remote|hybrid|on-?site)\s*$/i, '')
+      .replace(/\s+(?:remote|hybrid)\s*$/i, '')
+      .trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s;
 }
 
 export function parseLocation(text: string): ParsedLocation {
@@ -35,7 +43,9 @@ export function parseLocation(text: string): ParsedLocation {
     .filter(Boolean);
   let country: string | null = null;
   const last = segments[segments.length - 1];
-  if (last !== undefined) {
+  // "Atlanta, Georgia": a trailing US state name beats a same-named country.
+  const lastIsState = segments.length > 1 && last !== undefined && stateFromLocation(last) !== null;
+  if (last !== undefined && !lastIsState) {
     const code = COUNTRY_BY_NAME.get(last.toLowerCase());
     if (code) {
       country = code;
@@ -45,6 +55,17 @@ export function parseLocation(text: string): ParsedLocation {
   const state = segments.length > 0 ? stateFromLocation(segments.join(', ')) : null;
   if (state) country = 'US';
   return { state, country, remote };
+}
+
+/** Splits on " / ", ";", "|", " or ", and on a bare "/" when every side has a comma ("Austin, TX/Denver, CO"). */
+function splitPlaces(text: string): string[] {
+  const out: string[] = [];
+  for (const piece of text.split(/\s+\/\s+|;|\||\s+or\s+/i)) {
+    const sub = piece.split('/');
+    if (sub.length > 1 && sub.every((x) => x.includes(','))) out.push(...sub);
+    else out.push(piece);
+  }
+  return out;
 }
 
 /** A posting's raw location strings, split into places. Splits on " / ", ";", "|" and " or ". */
@@ -61,7 +82,7 @@ export function parseLocations(texts: string[]): {
   let anyPlaced = false;
   for (const text of texts) {
     if (HYBRID_RE.test(text)) anyHybrid = true;
-    for (const part of text.split(/\s+\/\s+|;|\||\s+or\s+/i)) {
+    for (const part of splitPlaces(text)) {
       const p = parseLocation(part);
       if (p.state) states.add(p.state);
       if (p.country) countries.add(p.country);
@@ -71,9 +92,9 @@ export function parseLocations(texts: string[]): {
   }
   const unknown = states.size === 0 && countries.size === 0 && !anyRemote;
   let remote: RemoteKind;
+  // 'remote' means a remote option exists (even alongside fixed offices); 'hybrid' only when the text says so.
   if (anyHybrid) remote = 'hybrid';
-  // Both a remote option and a fixed office: treated as flexible (hybrid).
-  else if (anyRemote) remote = anyPlaced ? 'hybrid' : 'remote';
+  else if (anyRemote) remote = 'remote';
   else if (anyPlaced) remote = 'onsite';
   else remote = 'unknown';
   return { states: [...states].sort(), countries: [...countries].sort(), remote, unknown };

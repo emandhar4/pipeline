@@ -5,7 +5,7 @@
  */
 export const TITLE_FIELD_KEYWORDS: Record<string, string[]> = {
   'software-engineering': [
-    'software', 'full stack', 'fullstack', 'front end', 'frontend', 'back end', 'backend', 'web developer',
+    'software', 'developer', 'programmer', 'full stack', 'fullstack', 'front end', 'frontend', 'back end', 'backend', 'web developer',
     'mobile developer', 'ios', 'android', 'devops', 'site reliability', 'sre', 'swe', 'application developer',
     'platform engineer', 'cloud engineer',
   ],
@@ -92,18 +92,14 @@ export const TITLE_FIELD_KEYWORDS: Record<string, string[]> = {
   ],
 };
 
-const SIMPLIFY_CATEGORY: Record<string, string[]> = {
-  'software engineering': ['software-engineering'],
-  software: ['software-engineering'],
-  'ai/ml/data': ['machine-learning-and-ai', 'data-analysis'],
-  'data science': ['data-analysis'],
-  'product management': ['product-management'],
-  product: ['product-management'],
-  'hardware engineering': ['engineering-and-development'],
-  hardware: ['engineering-and-development'],
-  quant: ['accounting-and-finance'],
-  'quantitative finance': ['accounting-and-finance'],
-};
+const SIMPLIFY_RULES: [RegExp, string[]][] = [
+  [/software/, ['software-engineering']],
+  [/data/, ['data-analysis']],
+  [/machine learning|\bai\b|\bml\b/, ['machine-learning-and-ai']],
+  [/product/, ['product-management']],
+  [/hardware/, ['engineering-and-development']],
+  [/quant/, ['accounting-and-finance']],
+];
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -124,6 +120,7 @@ export function fieldSlugsFromTitle(title: string, simplifyCategory?: string): s
     if (res.some((re) => re.test(title))) out.add(slug);
   }
   const cat = simplifyCategory?.trim().toLowerCase();
-  if (cat) for (const s of SIMPLIFY_CATEGORY[cat] ?? []) out.add(s);
+  if (cat) for (const [re, slugs] of SIMPLIFY_RULES) if (re.test(cat)) for (const s of slugs) out.add(s);
+  if (out.size === 0 && /(?<![a-z0-9])engineer/i.test(title)) out.add('engineering-and-development');
   return Object.keys(TITLE_FIELD_KEYWORDS).filter((s) => out.has(s));
 }
