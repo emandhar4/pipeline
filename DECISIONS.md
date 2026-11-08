@@ -193,4 +193,7 @@ User feedback after trying Phase 2 onboarding. The agreed fixes, as built:
   - `src/lib/resume/reader.ts`: swap `resumeReader` for an API-backed reader with the same input and output types.
   - `src/lib/resume/keyword-reader.ts`: the `suggestFields` call (role and field inference is the main gain).
   - Extracted text is not stored; if the API reader needs it, re-extract from Storage for now (or store it then).
-- **Known follow-ups.** An upload whose read fails leaves the file in the user's private Storage folder with no `resumes` row. Deleting a real account must also remove its Storage folder (`<uid>/`).
+- **Pre-0850 profiles.** Profiles that existed before 0850 have `work_style` null (`open_to_remote` was never backfilled from `relocate`). `/profile` requires a choice before saving. The Phase 3 finder must treat null `work_style` or empty places as incomplete, not as "no places".
+- **User-writable resume rows.** Users can write their own `resumes.suggestions` and `storage_path` (owner full-access RLS). Reads re-validate with `resumeSuggestionsSchema`, and any future service-role job that reads `resumes.storage_path` must re-check `isOwnResumePath(user_id, path)`.
+- **Unreadable uploads** are removed from Storage by `processResume` (best effort; a failed removal is logged and does not change the user-facing message).
+- **Known follow-ups.** Deleting a real account must also remove its Storage folder (`<uid>/`).

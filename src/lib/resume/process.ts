@@ -18,6 +18,16 @@ export async function loadCategoryOrder(client: Client): Promise<string[]> {
   return data.map((c) => c.slug);
 }
 
+/** Best effort: removes an unreadable upload. Never changes the user-facing result. */
+async function discardUpload(client: Client, path: string): Promise<void> {
+  try {
+    const { error } = await client.storage.from(RESUME_BUCKET).remove([path]);
+    if (error) console.error(`resume cleanup failed: ${error.message}`);
+  } catch (err) {
+    console.error(`resume cleanup failed: ${String(err)}`);
+  }
+}
+
 /**
  * Reads the user's uploaded resume and stores the suggestions in a new `resumes` row.
  * Uses only the caller's RLS client. Never writes profiles, profile_fields or
@@ -33,11 +43,17 @@ export async function processResume(
   if (!isOwnResumePath(userId, path)) return { ok: false, message: UPLOAD_FAILED };
 
   const download = await client.storage.from(RESUME_BUCKET).download(path);
-  if (download.error) return { ok: false, message: UPLOAD_FAILED };
+  if (download.error) {
+    await discardUpload(client, path);
+    return { ok: false, message: UPLOAD_FAILED };
+  }
   const bytes = new Uint8Array(await download.data.arrayBuffer());
 
   const extracted = await extractPdfText(bytes);
-  if (!extracted.ok) return { ok: false, message: MESSAGES[extracted.reason] };
+  if (!extracted.ok) {
+    await discardUpload(client, path);
+    return { ok: false, message: MESSAGES[extracted.reason] };
+  }
 
   const order = categoryOrder ?? (await loadCategoryOrder(client));
   const suggestions = await resumeReader(extracted.text, { client, today, categoryOrder: order });

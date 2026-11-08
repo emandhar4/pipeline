@@ -82,4 +82,22 @@ describe('processResume', () => {
     expect(await resumeRows(user)).toHaveLength(countBefore);
     expect(await resumeRows(other)).toHaveLength(0);
   });
+
+  it('removes an upload that cannot be read', async () => {
+    const path = newResumePath(user.id, randomUUID());
+    const pdf = await makeResumePdf([], { blank: true });
+    const up = await user.client.storage
+      .from('resumes')
+      .upload(path, pdf, { contentType: 'application/pdf' });
+    expect(up.error).toBeNull();
+    const countBefore = (await resumeRows(user)).length;
+
+    const result = await processResume(user.client, user.id, path);
+    expect(result.ok).toBe(false);
+
+    const listed = await user.client.storage.from('resumes').list(user.id);
+    expect(listed.error).toBeNull();
+    expect(listed.data?.map((o) => `${user.id}/${o.name}`)).not.toContain(path);
+    expect(await resumeRows(user)).toHaveLength(countBefore);
+  });
 });
