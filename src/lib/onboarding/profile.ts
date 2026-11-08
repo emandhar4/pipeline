@@ -31,7 +31,7 @@ async function currentStep(client: Client, userId: string): Promise<number> {
   return data.onboarding_step ?? 0;
 }
 
-/** Writes step 1 answers. grad_date (YYYY-MM) is stored as the first of that month. */
+/** Writes step 1 answers (relocate is no longer written). grad_date (YYYY-MM) is stored as the first of that month. */
 export async function applyStep1(client: Client, userId: string, input: Step1): Promise<void> {
   const step = Math.max(await currentStep(client, userId), 1);
   const { error } = await client
@@ -39,13 +39,20 @@ export async function applyStep1(client: Client, userId: string, input: Step1): 
     .update({
       career_stage: input.career_stage,
       school: input.school || null,
+      school_id: input.school_id,
       major: input.major || null,
+      major_cip: input.major_cip,
       grad_date: input.grad_date ? `${input.grad_date}-01` : null,
       work_auth: input.work_auth,
       home_location: input.home_location || null,
+      home_state: input.home_state,
       school_location: input.school_location || null,
+      school_state: input.school_state,
       in_state_school: input.in_state_school,
-      relocate: input.relocate,
+      work_anywhere_us: input.work_anywhere_us,
+      work_states: input.work_states,
+      work_countries: input.work_countries,
+      open_to_remote: input.open_to_remote,
       onboarding_step: step,
     })
     .eq('user_id', userId);

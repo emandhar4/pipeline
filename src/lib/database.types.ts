@@ -758,18 +758,26 @@ export type Database = {
           created_at: string
           grad_date: string | null
           home_location: string | null
+          home_state: string | null
           in_state_school: boolean | null
           major: string | null
+          major_cip: string | null
           onboarding_step: number
+          open_to_remote: boolean | null
           pay_floor_cents: number | null
           pay_floor_period: Database["public"]["Enums"]["pay_period"] | null
           relocate: Database["public"]["Enums"]["relocate_pref"] | null
           school: string | null
+          school_id: string | null
           school_location: string | null
+          school_state: string | null
           season: string | null
           updated_at: string
           user_id: string
+          work_anywhere_us: boolean
           work_auth: string | null
+          work_countries: string[]
+          work_states: string[]
         }
         Insert: {
           ai_mode?: Database["public"]["Enums"]["ai_mode"] | null
@@ -778,18 +786,26 @@ export type Database = {
           created_at?: string
           grad_date?: string | null
           home_location?: string | null
+          home_state?: string | null
           in_state_school?: boolean | null
           major?: string | null
+          major_cip?: string | null
           onboarding_step?: number
+          open_to_remote?: boolean | null
           pay_floor_cents?: number | null
           pay_floor_period?: Database["public"]["Enums"]["pay_period"] | null
           relocate?: Database["public"]["Enums"]["relocate_pref"] | null
           school?: string | null
+          school_id?: string | null
           school_location?: string | null
+          school_state?: string | null
           season?: string | null
           updated_at?: string
           user_id?: string
+          work_anywhere_us?: boolean
           work_auth?: string | null
+          work_countries?: string[]
+          work_states?: string[]
         }
         Update: {
           ai_mode?: Database["public"]["Enums"]["ai_mode"] | null
@@ -798,20 +814,43 @@ export type Database = {
           created_at?: string
           grad_date?: string | null
           home_location?: string | null
+          home_state?: string | null
           in_state_school?: boolean | null
           major?: string | null
+          major_cip?: string | null
           onboarding_step?: number
+          open_to_remote?: boolean | null
           pay_floor_cents?: number | null
           pay_floor_period?: Database["public"]["Enums"]["pay_period"] | null
           relocate?: Database["public"]["Enums"]["relocate_pref"] | null
           school?: string | null
+          school_id?: string | null
           school_location?: string | null
+          school_state?: string | null
           season?: string | null
           updated_at?: string
           user_id?: string
+          work_anywhere_us?: boolean
           work_auth?: string | null
+          work_countries?: string[]
+          work_states?: string[]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_major_cip_fkey"
+            columns: ["major_cip"]
+            isOneToOne: false
+            referencedRelation: "majors"
+            referencedColumns: ["cip_code"]
+          },
+          {
+            foreignKeyName: "profiles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resume_rules: {
         Row: {
@@ -1061,6 +1100,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      us_state_from_location: { Args: { t: string }; Returns: string }
     }
     Enums: {
       ai_job_kind:

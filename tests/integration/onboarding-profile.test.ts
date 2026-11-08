@@ -42,9 +42,10 @@ describe('onboarding profile persistence', () => {
       a.client,
       a.id,
       step1Schema.parse({
-        career_stage: 'intern', school: ' State U ', major: 'IE', grad_date: '2027-05',
-        work_auth: 'citizen_or_pr', home_location: 'Austin', school_location: 'Dallas',
-        in_state_school: true, relocate: 'anywhere',
+        career_stage: 'intern', school: ' State U ', school_id: '', major: 'IE', major_cip: '',
+        grad_date: '2027-05', work_auth: 'citizen_or_pr', home_location: 'Austin', home_state: '',
+        school_location: 'Dallas', school_state: '', work_anywhere_us: true, work_states: [],
+        work_countries: [], open_to_remote: false,
       }),
     );
     const { data, error } = await a.client.from('profiles').select('*').eq('user_id', a.id).single();
@@ -52,6 +53,36 @@ describe('onboarding profile persistence', () => {
     expect(data?.grad_date).toBe('2027-05-01');
     expect(data?.school).toBe('State U');
     expect(data?.onboarding_step).toBe(1);
+  });
+
+  it('step 1 stores structured locations', async () => {
+    await applyStep1(
+      b.client,
+      b.id,
+      step1Schema.parse({
+        career_stage: 'intern', school: 'State U', school_id: '', major: 'IE', major_cip: '',
+        grad_date: '2027-05', work_auth: 'citizen_or_pr', home_location: 'Atlanta, GA', home_state: 'GA',
+        school_location: 'Knoxville, TN', school_state: 'TN', work_anywhere_us: false,
+        work_states: ['TN', 'GA'], work_countries: ['CA'], open_to_remote: false,
+      }),
+    );
+    const { data, error } = await b.client
+      .from('profiles')
+      .select('home_state, school_state, in_state_school, work_anywhere_us, work_states, work_countries, open_to_remote, school_id, major_cip')
+      .eq('user_id', b.id)
+      .single();
+    expect(error).toBeNull();
+    expect(data).toEqual({
+      home_state: 'GA',
+      school_state: 'TN',
+      in_state_school: false,
+      work_anywhere_us: false,
+      work_states: ['GA', 'TN'],
+      work_countries: ['CA'],
+      open_to_remote: false,
+      school_id: null,
+      major_cip: null,
+    });
   });
 
   it('step 2 save replaces fields', async () => {
@@ -117,9 +148,10 @@ describe('onboarding profile persistence', () => {
       a.client,
       a.id,
       step1Schema.parse({
-        career_stage: 'intern', school: '', major: '', grad_date: '',
-        work_auth: 'citizen_or_pr', home_location: '', school_location: '',
-        in_state_school: false, relocate: 'no',
+        career_stage: 'intern', school: '', school_id: '', major: '', major_cip: '', grad_date: '',
+        work_auth: 'citizen_or_pr', home_location: '', home_state: '', school_location: '',
+        school_state: '', work_anywhere_us: false, work_states: [], work_countries: [],
+        open_to_remote: true,
       }),
     );
     const p1 = await a.client.from('profiles').select('onboarding_step, grad_date').eq('user_id', a.id).single();
