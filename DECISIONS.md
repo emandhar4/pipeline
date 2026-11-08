@@ -115,3 +115,22 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Decision:** Production alias is `https://pipeline-agent-peach.vercel.app`. `NEXT_PUBLIC_SITE_URL` is set to it for both production and preview (the env schema requires a valid URL), so sign-ins started from a preview deployment redirect back to production. Supabase Auth `site_url` and redirect allow-list contain localhost and the production URL only. `vercel.json` pins the framework to Next.js and `engines.node` to 24.x. Deploys are currently done with `vercel --prod` because `vercel git connect` needs a GitHub login connection on the Vercel account (manual step).
 - **Why:** Free tier, single auth redirect target; preview auth is not a goal in Phase 1.
 - **Who decided:** Claude (Task 7)
+
+## Open items carried from the Phase 1 final review (2026-11-08)
+
+- **Before invitees:** set up the Google OAuth provider (manual; owner deferred). Then verify with one invitee.
+- **Phase 2 must decide:** how fictional seed or demo rows stay out of real users' global data (`is_demo` marker, or a demo-only account with per-user rows).
+- **Phase 2 migrations:** `profile_fields` and `profile_industries` need `not null` and unique `(user_id, …)` constraints, plus a decision on the field-category vocabulary.
+- **Phase 2 code:** every page that reads data and every server action calls `getCurrentUser()`; never rely on the layout. Return 401 JSON for `/api/*` instead of a redirect.
+- **Phase 6:** `resume_rules` gets a `default auth.uid()` and one active rule set per user.
+- **Hardening backlog:**
+  - Neutral login message vs. invite-list oracle; set `invites.accepted_at` on first confirmed sign-in.
+  - Disable unused password signup.
+  - Revoke `anon` privileges on per-user tables.
+  - Cross-tenant FK existence oracle on user-owned FKs.
+  - `ai_jobs` input editable after claim; users can write their own `posting_matches` scores.
+  - Missing checks/FKs: `pay_min <= pay_max`, `resumes.posting_id`, `school_companies` unique.
+  - Sign-out Origin check.
+  - `safeNext` length cap; truncate the logged `error_description`.
+  - `db:types` truncates the file on CLI failure.
+  - Repo sits in an iCloud-synced folder, which caused duplicate `.next` files.
