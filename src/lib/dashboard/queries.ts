@@ -13,6 +13,7 @@ export async function getTasks(): Promise<TaskRow[]> {
     .select('id, kind, title, due_at, status, snoozed_until, ref_table, ref_id')
     .eq('user_id', id)
     .in('status', ['open', 'snoozed'])
+    .order('due_at', { ascending: true, nullsFirst: false })
     .limit(200);
   if (error) throw new Error(`read tasks failed: ${error.message}`);
   return data;
@@ -36,7 +37,9 @@ export async function getMatches(limit = 8): Promise<MatchRow[]> {
     .eq('user_id', id)
     .eq('passed_filter', true)
     .neq('state', 'hidden')
-    .limit(100);
+    .order('ai_score', { ascending: false, nullsFirst: false })
+    .order('base_score', { ascending: false, nullsFirst: false })
+    .limit(Math.max(limit, 20));
   if (error) throw new Error(`read matches failed: ${error.message}`);
   return data
     .flatMap((m) => {

@@ -154,3 +154,9 @@ Phase 2 uses real data only: no fictional seed rows in shared tables. The dashbo
 - `/profile` is for finished onboarding. A user below step 2 is redirected to `/onboarding`.
 - Step-2 "add your own" chips use `category_slug = null`. Typing a name that already has a chip turns that chip on instead.
 - e2e specs share `tests/e2e/helpers.ts`. Auth specs mark their users onboarded with the admin client so the dashboard gate does not redirect them.
+
+## Dashboard (2026-11-08)
+
+- The daily finder must set `posting_matches.passed_filter = true` for rows that pass the profile filter; the dashboard's "New postings worth it" panel shows only those.
+- Task due dates display in UTC until the user's time zone is stored.
+- Each dashboard panel has its own error boundary (retry in place), so one failed query does not blank the page.

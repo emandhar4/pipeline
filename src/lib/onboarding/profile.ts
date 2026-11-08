@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentUser } from '@/lib/auth';
 import type { Database } from '@/lib/database.types';
@@ -100,7 +101,7 @@ export async function applyStep2(client: Client, userId: string, input: Step2): 
 
 }
 
-export async function getOnboardingState(): Promise<OnboardingState> {
+export const getOnboardingState = cache(async (): Promise<OnboardingState> => {
   const { id } = await getCurrentUser();
   const client = await createClient();
   const [profile, fields, industries] = await Promise.all([
@@ -117,7 +118,7 @@ export async function getOnboardingState(): Promise<OnboardingState> {
     fields: fields.data,
     industries: industries.data,
   };
-}
+});
 
 export async function saveStep1(input: Step1): Promise<void> {
   const { id } = await getCurrentUser();

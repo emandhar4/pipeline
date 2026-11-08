@@ -85,6 +85,13 @@ describe('agingOut', () => {
     expect(out).toEqual({ stale: [], noResponse: [] });
   });
 
+  it('falls back to applied_at when last_activity_at is null', () => {
+    const applied = new Date(now.getTime() - 31 * day).toISOString().slice(0, 10);
+    const a = app({ id: 'n', last_activity_at: null, applied_at: applied });
+    expect(agingOut([a], now).stale.map((x) => x.id)).toEqual(['n']);
+    expect(agingOut([app({ id: 'm', last_activity_at: null })], now)).toEqual({ stale: [], noResponse: [] });
+  });
+
   it('uses whole days (floor)', () => {
     const a = app({ id: 'f', last_activity_at: new Date(now.getTime() - 29.9 * day).toISOString() });
     expect(agingOut([a], now).stale).toEqual([]);

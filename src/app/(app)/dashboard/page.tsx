@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { getOnboardingState } from '@/lib/onboarding/profile';
+import { PanelBoundary } from './panel-boundary';
 import { HealthPanel } from './health-panel';
 import { PostingsPanel } from './postings-panel';
 import { TodayPanel } from './today-panel';
@@ -42,16 +43,22 @@ export default function DashboardPage() {
         <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
           <h1 className="sr-only">Dashboard</h1>
           <div className="grid gap-10 md:grid-cols-2 md:gap-x-12">
-            <Suspense fallback={<PanelSkeleton />}>
-              <TodayPanel />
-            </Suspense>
-            <Suspense fallback={<PanelSkeleton />}>
-              <PostingsPanel />
-            </Suspense>
-            <div className="md:col-span-2">
-              <Suspense fallback={<PanelSkeleton rows={5} />}>
-                <HealthPanel />
+            <PanelBoundary title="Today">
+              <Suspense fallback={<PanelSkeleton />}>
+                <TodayPanel />
               </Suspense>
+            </PanelBoundary>
+            <PanelBoundary title="New postings worth it">
+              <Suspense fallback={<PanelSkeleton />}>
+                <PostingsPanel />
+              </Suspense>
+            </PanelBoundary>
+            <div className="md:col-span-2">
+              <PanelBoundary title="Pipeline health">
+                <Suspense fallback={<PanelSkeleton rows={5} />}>
+                  <HealthPanel />
+                </Suspense>
+              </PanelBoundary>
             </div>
           </div>
           <p className="mt-12 text-sm text-muted">

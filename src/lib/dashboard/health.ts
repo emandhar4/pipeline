@@ -46,9 +46,18 @@ export function reachedStage(app: AppRow, events: EventRow[] = []): FunnelStage 
   return best;
 }
 
-export function funnel(apps: AppRow[], events: EventRow[] = []): { stage: FunnelStage; count: number }[] {
+function groupEvents(events: EventRow[]): Map<string, EventRow[]> {
   const byApp = new Map<string, EventRow[]>();
-  for (const e of events) byApp.set(e.application_id, [...(byApp.get(e.application_id) ?? []), e]);
+  for (const e of events) {
+    const list = byApp.get(e.application_id);
+    if (list) list.push(e);
+    else byApp.set(e.application_id, [e]);
+  }
+  return byApp;
+}
+
+export function funnel(apps: AppRow[], events: EventRow[] = []): { stage: FunnelStage; count: number }[] {
+  const byApp = groupEvents(events);
   const counts = FUNNEL_STAGES.map(() => 0);
   for (const app of apps) {
     const reached = reachedStage(app, byApp.get(app.id));
@@ -66,8 +75,9 @@ export function channelConversion(
   events: EventRow[] = [],
 ): { cold: ChannelCount; referral: ChannelCount } {
   const out = { cold: { applied: 0, advanced: 0 }, referral: { applied: 0, advanced: 0 } };
+  const byApp = groupEvents(events);
   for (const app of apps) {
-    const reached = reachedStage(app, events);
+    const reached = reachedStage(app, byApp.get(app.id));
     if (reached === null) continue;
     const bucket = app.channel === 'referral' ? out.referral : out.cold;
     bucket.applied++;
@@ -81,9 +91,11 @@ const DAY_MS = 86_400_000;
 export const STALE_DAYS = 30;
 export const NO_RESPONSE_DAYS = 45;
 
+/** Whole days since last activity; falls back to the applied date if last_activity_at is null. */
 export function daysSinceActivity(app: AppRow, now: Date): number | null {
-  if (!app.last_activity_at) return null;
-  return Math.floor((now.getTime() - new Date(app.last_activity_at).getTime()) / DAY_MS);
+  const since = app.last_activity_at ?? app.applied_at;
+  if (!since) return null;
+  return Math.floor((now.getTime() - new Date(since).getTime()) / DAY_MS);
 }
 
 /** Live applications gone quiet: 30-44 days is stale, 45+ is no response. Never "rejected". */
