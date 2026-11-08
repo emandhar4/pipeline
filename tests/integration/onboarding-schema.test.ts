@@ -29,7 +29,9 @@ describe('onboarding schema', () => {
 
   it('users cannot write field_categories', async () => {
     const res = await a.client.from('field_categories').insert({ slug: 'x', name: 'X', sort: 99 });
-    expect(res.error).not.toBeNull();
+    expect(res.error?.code).toBe('42501');
+    const count = await adminClient().from('field_categories').select('*', { count: 'exact', head: true });
+    expect(count.count).toBe(21);
   });
 
   it('profile_fields rejects a case-duplicate label for the same user', async () => {
@@ -50,10 +52,14 @@ describe('onboarding schema', () => {
 
   it("user B cannot read or overwrite A's profile_fields", async () => {
     const admin = adminClient();
-    const row = await admin.from('profile_fields').select('id,label').eq('user_id', a.id);
-    expect(row.data?.length).toBeGreaterThan(0);
-    const id = row.data![0].id as string;
-    const label = row.data![0].label as string;
+    const seeded = await a.client
+      .from('profile_fields')
+      .insert({ label: 'Isolation Probe', weight: 'primary' })
+      .select('id,label')
+      .single();
+    expect(seeded.error).toBeNull();
+    const id = seeded.data!.id as string;
+    const label = seeded.data!.label as string;
 
     const read = await b.client.from('profile_fields').select('id');
     expect(read.error).toBeNull();
