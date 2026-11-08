@@ -37,13 +37,14 @@ function spacingFor(host: string, rules: Record<string, number>): number {
   return DEFAULT_SPACING_MS
 }
 
-function retryAfterMs(header: string | null): number | null {
-  if (!header) return null
-  const secs = Number(header)
-  if (Number.isFinite(secs) && secs >= 0) return Math.min(secs * 1000, MAX_RETRY_AFTER_MS)
-  const date = Date.parse(header)
-  if (!Number.isNaN(date)) return Math.min(Math.max(date - Date.now(), 0), MAX_RETRY_AFTER_MS)
-  return null
+function retryAfterMs(header: string | null, nowMs: number): number | null {
+  const value = header?.trim()
+  if (!value) return null
+  if (/^\d+(\.\d+)?$/.test(value)) return Math.min(Number(value) * 1000, MAX_RETRY_AFTER_MS)
+  if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) return null
+  const date = Date.parse(value)
+  if (Number.isNaN(date)) return null
+  return Math.min(Math.max(date - nowMs, 0), MAX_RETRY_AFTER_MS)
 }
 
 function describeError(err: unknown): { retryable: true; reason: string } {
@@ -84,45 +85,69 @@ export function createHttp(opts: HttpOptions = {}): Http {
   const now = opts.now ?? Date.now
   const rules = { ...DEFAULT_SPACING_RULES, ...opts.spacingMs }
 
-  const chains = new Map<string, Promise<void>>()
+  const tails = new Map<string, Promise<void>>()
   const lastAt = new Map<string, number>()
+  const cooldownUntil = new Map<string, number>()
 
-  /** Serializes requests per host and waits so starts are at least the host's spacing apart. */
-  function gate(host: string): Promise<void> {
-    const prev = chains.get(host) ?? Promise.resolve()
-    const next = prev.then(async () => {
-      const last = lastAt.get(host)
-      if (last !== undefined) {
-        const wait = spacingFor(host, rules) - (now() - last)
-        if (wait > 0) await sleep(wait)
-      }
-      lastAt.set(host, now())
-    })
-    chains.set(
+  /**
+   * Holds the host's slot for one attempt (so concurrent callers queue behind it), waits for the
+   * host spacing and any cooldown, and returns the release function.
+   */
+  async function acquire(host: string): Promise<() => void> {
+    const prev = tails.get(host) ?? Promise.resolve()
+    let release!: () => void
+    const mine = new Promise<void>((r) => (release = r))
+    tails.set(
       host,
-      next.catch(() => undefined),
+      prev.then(() => mine),
     )
-    return next
+    await prev
+    try {
+      const t = now()
+      const last = lastAt.get(host)
+      const spacingWait = last === undefined ? 0 : spacingFor(host, rules) - (t - last)
+      const coolWait = (cooldownUntil.get(host) ?? 0) - t
+      const wait = Math.max(spacingWait, coolWait)
+      if (wait > 0) await sleep(wait)
+      lastAt.set(host, now())
+    } catch (err) {
+      release()
+      throw err
+    }
+    return release
   }
 
   async function request(url: string, init: RequestInit): Promise<FetchResult<string>> {
-    const host = new URL(url).hostname
+    let host: string
+    try {
+      host = new URL(url).hostname
+    } catch {
+      return { ok: false, reason: 'invalid URL' }
+    }
     let last: { reason: string; status?: number } = { reason: 'network error: unknown' }
     for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
-      await gate(host)
+      const release = await acquire(host)
       let waitMs = BACKOFF_MS[attempt]
       try {
         const headers = new Headers(init.headers)
         headers.set('User-Agent', USER_AGENT)
         const res = await fetchImpl(url, { ...init, headers, signal: AbortSignal.timeout(TIMEOUT_MS) })
         if (res.ok) return { ok: true, data: await res.text(), status: res.status }
+        try {
+          await res.body?.cancel()
+        } catch {
+          // body already consumed or locked
+        }
         if (res.status !== 429 && res.status < 500) {
           return { ok: false, status: res.status, reason: `HTTP ${res.status}` }
         }
-        waitMs = retryAfterMs(res.headers.get('retry-after')) ?? waitMs
+        waitMs = retryAfterMs(res.headers.get('retry-after'), now()) ?? waitMs
         last = { status: res.status, reason: `HTTP ${res.status} after ${BACKOFF_MS.length} retries` }
+        if (attempt < BACKOFF_MS.length) cooldownUntil.set(host, now() + waitMs)
       } catch (err) {
         last = { reason: describeError(err).reason }
+      } finally {
+        release()
       }
       if (attempt < BACKOFF_MS.length) await sleep(waitMs)
     }
@@ -152,7 +177,12 @@ export function createHttp(opts: HttpOptions = {}): Http {
       }),
     getText: (url: string) => request(url, {}),
     async robotsAllows(url: string) {
-      const u = new URL(url)
+      let u: URL
+      try {
+        u = new URL(url)
+      } catch {
+        return false
+      }
       let rules = robotsCache.get(u.host)
       if (!rules) {
         rules = request(`${u.protocol}//${u.host}/robots.txt`, {}).then((r) => {

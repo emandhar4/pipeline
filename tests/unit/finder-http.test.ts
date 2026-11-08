@@ -4,14 +4,16 @@ import { createHttp, USER_AGENT } from '@/finder/http'
 function setup(responses: Array<Response | Error | ((url: string) => Response)>) {
   let t = 1_000_000
   const sleeps: number[] = []
-  const calls: Array<{ url: string; init?: RequestInit }> = []
+  const calls: Array<{ url: string; init?: RequestInit; at: number }> = []
   let i = 0
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
-    calls.push({ url, init })
+    calls.push({ url, init, at: t })
     const r = responses[Math.min(i++, responses.length - 1)]
     if (r instanceof Error) throw r
-    return typeof r === 'function' ? r(url) : r.clone()
+    if (typeof r === 'function') return r(url)
+    // fresh response per call (a tee'd clone() never finishes cancel())
+    return new Response(await r.clone().text(), { status: r.status, headers: r.headers })
   }) as typeof fetch
   const http = createHttp({
     fetchImpl,
@@ -116,6 +118,74 @@ describe('finder http', () => {
     expect(await b.http.getText('https://example.com/a')).toEqual({ ok: true, data: 'hi', status: 200 })
     const c = setup([to])
     expect(await c.http.getText('https://example.com/a')).toEqual({ ok: false, reason: 'timeout' })
+  })
+
+  it('pauses every request to a throttled host (cooldown)', async () => {
+    const s = setup([json('', 429), json({ ok: 1 })])
+    const [a, b] = await Promise.all([
+      s.http.getJson('https://example.com/a'),
+      s.http.getJson('https://example.com/b'),
+    ])
+    expect(a.ok && b.ok).toBe(true)
+    expect(s.calls).toHaveLength(3)
+    const first = s.calls[0].at
+    expect(s.calls[1].at - first).toBeGreaterThanOrEqual(2000)
+    expect(s.calls[2].at - first).toBeGreaterThanOrEqual(2000)
+  })
+
+  it('honors spacing for concurrent requests and does not block other hosts', async () => {
+    const s = setup([json({})])
+    await Promise.all([
+      s.http.getJson('https://example.com/1'),
+      s.http.getJson('https://example.com/2'),
+      s.http.getJson('https://example.com/3'),
+      s.http.getJson('https://other.com/1'),
+    ])
+    const ex = s.calls.filter((c) => c.url.includes('example.com')).map((c) => c.at)
+    expect(ex[1] - ex[0]).toBeGreaterThanOrEqual(500)
+    expect(ex[2] - ex[1]).toBeGreaterThanOrEqual(500)
+    const other = s.calls.find((c) => c.url.includes('other.com'))!
+    expect(other.at - ex[0]).toBeLessThan(500)
+  })
+
+  it('computes HTTP-date Retry-After from the injected clock', async () => {
+    const t0 = 1_000_000
+    const date = new Date(t0 + 7000).toUTCString() // second precision
+    const expected = Date.parse(date) - t0
+    const s = setup([json('', 429, { 'Retry-After': date }), json({})])
+    await s.http.getJson('https://example.com/a')
+    expect(s.sleeps).toEqual([expected])
+  })
+
+  it('falls back to backoff on blank or invalid Retry-After', async () => {
+    for (const v of ['   ', 'soon', '-5']) {
+      const s = setup([json('', 429, { 'Retry-After': v }), json({})])
+      await s.http.getJson('https://example.com/a')
+      expect(s.sleeps).toEqual([2000])
+    }
+  })
+
+  it('cancels unconsumed bodies on non-OK responses', async () => {
+    let cancelled = 0
+    const body = new ReadableStream({ cancel: () => void cancelled++ })
+    const s = setup([new Response(body, { status: 404 })])
+    // clone() would tee the stream, so serve the original response directly
+    const http = createHttp({
+      fetchImpl: (async () => new Response(body, { status: 404 })) as typeof fetch,
+      sleep: async () => undefined,
+    })
+    expect(await http.getJson('https://example.com/a')).toEqual({ ok: false, status: 404, reason: 'HTTP 404' })
+    expect(cancelled).toBe(1)
+    expect(s.calls).toHaveLength(0)
+  })
+
+  it('returns invalid URL instead of throwing', async () => {
+    const s = setup([json({})])
+    expect(await s.http.getJson('not a url')).toEqual({ ok: false, reason: 'invalid URL' })
+    expect(await s.http.postJson('::', {})).toEqual({ ok: false, reason: 'invalid URL' })
+    expect(await s.http.getText('')).toEqual({ ok: false, reason: 'invalid URL' })
+    expect(await s.http.robotsAllows('nope')).toBe(false)
+    expect(s.calls).toHaveLength(0)
   })
 
   describe('robotsAllows', () => {
