@@ -160,3 +160,9 @@ Phase 2 uses real data only: no fictional seed rows in shared tables. The dashbo
 - The daily finder must set `posting_matches.passed_filter = true` for rows that pass the profile filter; the dashboard's "New postings worth it" panel shows only those.
 - Task due dates display in UTC until the user's time zone is stored.
 - Each dashboard panel has its own error boundary (retry in place), so one failed query does not blank the page.
+
+## Phase 3 decisions (open)
+
+- Structured regions (country plus subdivision) and an open-to-remote preference, replacing free-text locations (I3).
+- Season vocabulary (term plus year) and whether a user may pick more than one season (M7).
+- A "search requested" signal, and selecting users to search by "has a primary field and a season" instead of `onboarding_step` (M8).

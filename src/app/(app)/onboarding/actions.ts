@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import type { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { saveStep1, saveStep2 } from '@/lib/onboarding/profile';
+import { loadCategories } from './data';
 import { step1Schema, step2Schema } from '@/lib/onboarding/schema';
 
 export type FormMode = 'onboarding' | 'profile';
@@ -120,8 +121,28 @@ export async function saveStepTwo(
   });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
+  // Category slugs must exist; checked before any write. A category chip's label is set here
+  // from the category name, never taken from the client.
+  let categories: Awaited<ReturnType<typeof loadCategories>>;
   try {
-    await saveStep2(parsed.data);
+    categories = await loadCategories();
+  } catch (e) {
+    console.error('[onboarding] loadCategories failed', { message: (e as Error).message });
+    return { message: SAVE_FAILED };
+  }
+  const names = new Map(categories.map((c) => [c.slug, c.name]));
+  const checked = parsed.data.fields.map((f) => {
+    if (f.category_slug === null) return f;
+    const name = names.get(f.category_slug);
+    return name === undefined ? null : { ...f, label: name };
+  });
+  if (checked.some((f) => f === null)) {
+    return { errors: { fields: 'One of the fields is not recognised. Reload the page and try again.' } };
+  }
+  const data = { ...parsed.data, fields: checked.filter((f) => f !== null) };
+
+  try {
+    await saveStep2(data);
   } catch (e) {
     console.error('[onboarding] saveStep2 failed', { message: (e as Error).message });
     return { message: SAVE_FAILED };

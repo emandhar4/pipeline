@@ -24,6 +24,22 @@ describe('parsePayFloor', () => {
     expect(parsePayFloor('85,000', 'year')).toEqual({ cents: 8500000, period: 'year' });
     expect(parsePayFloor('19.99', 'hour').cents).toBe(1999);
   });
+  it('accepts a leading dollar sign and a k suffix', () => {
+    expect(parsePayFloor('$22', 'hour')).toEqual({ cents: 2200, period: 'hour' });
+    expect(parsePayFloor('$22.50', 'hour').cents).toBe(2250);
+    expect(parsePayFloor('85k', 'year').cents).toBe(8500000);
+    expect(parsePayFloor('85K', 'year').cents).toBe(8500000);
+    expect(parsePayFloor('$85,000', 'year').cents).toBe(8500000);
+    expect(parsePayFloor('$85.5k', 'year').cents).toBe(8550000);
+  });
+  it('rejects malformed dollar and k input', () => {
+    expect(() => parsePayFloor('$', 'year')).toThrow();
+    expect(() => parsePayFloor('k', 'year')).toThrow();
+    expect(() => parsePayFloor('85kk', 'year')).toThrow();
+    expect(() => parsePayFloor('$$5', 'hour')).toThrow();
+    expect(() => parsePayFloor('-85k', 'year')).toThrow();
+    expect(() => parsePayFloor('99999999k', 'year')).toThrow('too large');
+  });
   it('throws on non-numeric or over-precise input', () => {
     expect(() => parsePayFloor('abc', 'year')).toThrow();
     expect(() => parsePayFloor('1.234', 'hour')).toThrow();

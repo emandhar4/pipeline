@@ -1,9 +1,10 @@
 'use client';
 
-import { startTransition, useActionState, useState } from 'react';
+import { startTransition, useActionState, useRef, useState } from 'react';
 import { CAREER_STAGES, RELOCATE, WORK_AUTH } from '@/lib/onboarding/options';
 import { saveStepOne, type FormMode, type FormState } from './actions';
-import { ChoiceGroup, FormMessage, TextField } from './form-parts';
+import { ChoiceGroup, FormMessage, SubmitSummary, TextField } from './form-parts';
+import { useFocusOnError } from './use-focus-on-error';
 
 export type StepOneValues = {
   career_stage: string;
@@ -27,6 +28,8 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
   const [home, setHome] = useState(values.home_location);
   const [schoolLoc, setSchoolLoc] = useState(values.school_location);
   const errors = state.errors ?? {};
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusOnError(formRef, state, Object.keys(errors).length > 0 || !!state.message);
   const askInState = home.trim() !== '' && schoolLoc.trim() !== '';
 
   // Submitting through onSubmit (not the form action prop) skips React's automatic form
@@ -38,7 +41,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-8">
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="flex flex-col gap-8">
       <FormMessage message={state.message} />
 
       <ChoiceGroup
@@ -135,6 +138,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
         <button type="submit" disabled={pending} className="btn-primary min-w-32">
           {pending ? 'Saving…' : mode === 'profile' ? 'Save changes' : 'Continue'}
         </button>
+        <SubmitSummary count={Object.keys(errors).length} />
       </div>
     </form>
   );

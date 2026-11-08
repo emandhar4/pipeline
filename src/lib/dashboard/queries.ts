@@ -12,7 +12,7 @@ export async function getTasks(): Promise<TaskRow[]> {
     .from('tasks')
     .select('id, kind, title, due_at, status, snoozed_until, ref_table, ref_id')
     .eq('user_id', id)
-    .in('status', ['open', 'snoozed'])
+    .or('status.is.null,status.in.(open,snoozed)')
     .order('due_at', { ascending: true, nullsFirst: false })
     .limit(200);
   if (error) throw new Error(`read tasks failed: ${error.message}`);

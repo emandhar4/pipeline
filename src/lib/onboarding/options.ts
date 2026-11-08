@@ -45,19 +45,23 @@ export function seasonOptions(today: Date): string[] {
 }
 
 /**
- * Parses a pay floor into integer cents. Blank means no floor. Strips commas and
- * whitespace; throws on anything non-numeric, negative, or with over 2 decimals.
+ * Parses a pay floor into integer cents. Blank means no floor. Strips commas, whitespace and a
+ * leading `$`; a trailing `k`/`K` multiplies by 1000 ("85k"). Throws on anything non-numeric,
+ * negative, or with over 2 decimals.
  */
 export function parsePayFloor(
   amount: string,
   period: PayPeriod,
 ): { cents: number | null; period: PayPeriod | null } {
-  const cleaned = amount.replace(/[,\s]/g, '');
+  let cleaned = amount.replace(/[,\s]/g, '');
   if (cleaned === '') return { cents: null, period: null };
+  cleaned = cleaned.replace(/^\$/, '');
+  const thousands = /[kK]$/.test(cleaned);
+  if (thousands) cleaned = cleaned.slice(0, -1);
   if (!/^(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(cleaned)) {
-    throw new Error('Enter pay as a number with at most 2 decimal places');
+    throw new Error('Enter pay as a number, like 22, $22.50 or 85k');
   }
-  const cents = Math.round(Number(cleaned) * 100);
+  const cents = Math.round(Number(cleaned) * 100) * (thousands ? 1000 : 1);
   if (cents > INT4_MAX) throw new Error('That pay amount is too large.');
   return { cents, period };
 }

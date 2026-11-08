@@ -22,12 +22,15 @@ describe('onboarding profile persistence', () => {
   const created: TestUser[] = [];
   let a: TestUser;
   let b: TestUser;
+  let c: TestUser;
 
   beforeAll(async () => {
     a = await createTestUser('onbp-a');
     created.push(a);
     b = await createTestUser('onbp-b');
     created.push(b);
+    c = await createTestUser('onbp-c');
+    created.push(c);
   });
 
   afterAll(async () => {
@@ -80,6 +83,33 @@ describe('onboarding profile persistence', () => {
     expect(prof.data?.pay_floor_period).toBe('hour');
     expect(prof.data?.season).toBe('Summer 2027');
     expect(prof.data?.onboarding_step).toBe(2);
+  });
+
+  it('does not mark step 2 done when a later write fails', async () => {
+    await expect(
+      applyStep2(
+        c.client,
+        c.id,
+        step2Schema.parse({
+          fields: [{ category_slug: 'no-such-category', label: 'X', weight: 'primary' }],
+          industries: [],
+          pay_amount: '30',
+          pay_period: 'hour',
+          season: 'Summer 2027',
+        }),
+      ),
+    ).rejects.toThrow();
+    const prof = await c.client.from('profiles').select('onboarding_step, pay_floor_cents').eq('user_id', c.id).single();
+    expect(prof.data?.onboarding_step).toBe(0);
+    expect(prof.data?.pay_floor_cents).toBe(3000);
+
+    await applyStep2(
+      c.client,
+      c.id,
+      step2Schema.parse({ fields: [f('Design')], industries: [], pay_amount: '', pay_period: 'year', season: 'Fall 2027' }),
+    );
+    const ok = await c.client.from('profiles').select('onboarding_step').eq('user_id', c.id).single();
+    expect(ok.data?.onboarding_step).toBe(2);
   });
 
   it('never lowers onboarding_step, and a blank pay floor stores nulls', async () => {

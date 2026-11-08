@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { getOnboardingState } from '@/lib/onboarding/profile';
@@ -23,6 +24,8 @@ const STEPS = {
 async function Onboarding({ searchParams }: Pick<PageProps<'/onboarding'>, 'searchParams'>) {
   await getCurrentUser();
   const [params, state] = await Promise.all([searchParams, getOnboardingState()]);
+  // A finished setup is edited on the profile page, not by re-running onboarding.
+  if (state.step >= 2 && params.step === undefined) redirect('/profile');
   // Step 2 opens once step 1 is saved; ?step=1 lets the user go back to it.
   const step = params.step === '1' || state.step < 1 ? 1 : 2;
 

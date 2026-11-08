@@ -742,7 +742,7 @@ export type Database = {
           home_location: string | null
           in_state_school: boolean | null
           major: string | null
-          onboarding_step: number | null
+          onboarding_step: number
           pay_floor_cents: number | null
           pay_floor_period: Database["public"]["Enums"]["pay_period"] | null
           relocate: Database["public"]["Enums"]["relocate_pref"] | null
@@ -762,7 +762,7 @@ export type Database = {
           home_location?: string | null
           in_state_school?: boolean | null
           major?: string | null
-          onboarding_step?: number | null
+          onboarding_step?: number
           pay_floor_cents?: number | null
           pay_floor_period?: Database["public"]["Enums"]["pay_period"] | null
           relocate?: Database["public"]["Enums"]["relocate_pref"] | null
@@ -782,7 +782,7 @@ export type Database = {
           home_location?: string | null
           in_state_school?: boolean | null
           major?: string | null
-          onboarding_step?: number | null
+          onboarding_step?: number
           pay_floor_cents?: number | null
           pay_floor_period?: Database["public"]["Enums"]["pay_period"] | null
           relocate?: Database["public"]["Enums"]["relocate_pref"] | null

@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { startTransition, useActionState, useState } from 'react';
+import { startTransition, useActionState, useRef, useState } from 'react';
 import type { PayPeriod } from '@/lib/onboarding/options';
 import { saveStepTwo, type FormMode, type FormState } from './actions';
-import { FieldError, FormMessage, errorId } from './form-parts';
+import { FieldError, FormMessage, SubmitSummary, errorId } from './form-parts';
+import { useFocusOnError } from './use-focus-on-error';
 
 export type Category = { slug: string; name: string };
 type Weight = 'primary' | 'secondary';
@@ -38,6 +39,38 @@ function initialChips(categories: Category[], fields: StepTwoValues['fields']): 
   return chips;
 }
 
+/** Adds (or switches on) a custom field chip. Null when it would pass the field cap. */
+function withOwnField(chips: Chip[], draft: string): Chip[] | null {
+  const label = draft.trim().slice(0, 100);
+  if (!label) return chips;
+  // Typing a name that already has a chip turns that chip on instead of adding a twin.
+  const next = chips.some((c) => same(c.label, label))
+    ? chips.map((c) => (same(c.label, label) && c.state === 'off' ? { ...c, state: 'primary' as const } : c))
+    : [...chips, { key: `own:${label}`, category_slug: null, label, state: 'primary' as const }];
+  return next.filter((c) => c.state !== 'off').length > MAX_FIELDS ? null : next;
+}
+
+/** Adds an industry to a list, moving it from the other list. Null when the cap is reached. */
+function withIndustry(
+  industries: StepTwoValues['industries'],
+  draft: string,
+  preference: Preference,
+): StepTwoValues['industries'] | null {
+  const industry = draft.trim().slice(0, 100);
+  if (!industry) return industries;
+  const rest = industries.filter((i) => !same(i.industry, industry));
+  if (rest.length >= MAX_INDUSTRIES) return null;
+  return [...rest, { industry, preference }];
+}
+
+function fieldsOf(chips: Chip[]): string {
+  return JSON.stringify(
+    chips
+      .filter((c) => c.state !== 'off')
+      .map((c) => ({ category_slug: c.category_slug, label: c.label, weight: c.state })),
+  );
+}
+
 function Dot({ state }: { state: ChipState }) {
   return <span className="chip-dot" data-state={state} aria-hidden="true" />;
 }
@@ -61,35 +94,46 @@ export function StepTwoForm({
   const [payPeriod, setPayPeriod] = useState<PayPeriod>(values.pay_period);
   const [season, setSeason] = useState(values.season);
   const errors = state.errors ?? {};
+  const [draftState, setPendingErrors] = useState<{ errors: Record<string, string> }>({ errors: {} });
+  const draftErrors = draftState.errors;
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusOnError(formRef, state, Object.keys(errors).length > 0 || !!state.message);
+  useFocusOnError(formRef, draftState, Object.keys(draftErrors).length > 0);
 
   const picked = chips.filter((c) => c.state !== 'off');
   const industriesFull = industries.length >= MAX_INDUSTRIES;
+
+  function clearDraftError(key: string) {
+    setPendingErrors((p) => {
+      if (!(key in p.errors)) return p;
+      const rest = { ...p.errors };
+      delete rest[key];
+      return { errors: rest };
+    });
+  }
 
   function cycle(key: string) {
     setChips((cs) => cs.map((c) => (c.key === key ? { ...c, state: NEXT[c.state] } : c)));
   }
 
   function addOwn() {
-    const label = ownDraft.trim().slice(0, 100);
-    if (!label) return;
-    setChips((cs) => {
-      // Typing a name that already has a chip turns that chip on instead of adding a twin.
-      if (cs.some((c) => same(c.label, label))) {
-        return cs.map((c) => (same(c.label, label) && c.state === 'off' ? { ...c, state: 'primary' } : c));
-      }
-      return [...cs, { key: `own:${label}`, category_slug: null, label, state: 'primary' }];
-    });
+    if (!ownDraft.trim()) return;
+    const next = withOwnField(chips, ownDraft);
+    if (!next) {
+      setPendingErrors({ errors: { own: `Up to ${MAX_FIELDS} fields. Switch one off to add this.` } });
+      return;
+    }
+    setChips(next);
     setOwnDraft('');
   }
 
   function addIndustry(preference: Preference) {
-    const industry = drafts[preference].trim().slice(0, 100);
-    if (!industry) return;
+    if (!drafts[preference].trim()) return;
     // One industry lives in one list; adding it to the other list moves it.
-    const rest = industries.filter((i) => !same(i.industry, industry));
     // At the cap, keep the typed text so nothing is lost; the "Up to 20" note explains why.
-    if (rest.length >= MAX_INDUSTRIES) return;
-    setIndustries([...rest, { industry, preference }]);
+    const next = withIndustry(industries, drafts[preference], preference);
+    if (!next) return;
+    setIndustries(next);
     setDrafts((d) => ({ ...d, [preference]: '' }));
   }
 
@@ -99,18 +143,46 @@ export function StepTwoForm({
     add();
   }
 
+  // Text typed but not added is added now, with the same rules as the Add buttons. If it cannot
+  // be added, the submit stops with a message beside that input rather than dropping the text.
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
+    const blocked: Record<string, string> = {};
+
+    let nextChips = chips;
+    if (ownDraft.trim()) {
+      const next = withOwnField(chips, ownDraft);
+      if (next) nextChips = next;
+      else blocked.own = `Up to ${MAX_FIELDS} fields. Switch one off, or clear this box, to continue.`;
+    }
+    let nextIndustries = industries;
+    for (const pref of ['prefer', 'avoid'] as const) {
+      if (!drafts[pref].trim()) continue;
+      const next = withIndustry(nextIndustries, drafts[pref], pref);
+      if (next) nextIndustries = next;
+      else
+        blocked[pref] = `Up to ${MAX_INDUSTRIES} industries. Remove one, or clear this box, to continue.`;
+    }
+    if (Object.keys(blocked).length > 0) {
+      setPendingErrors({ errors: blocked });
+      return;
+    }
+
+    setPendingErrors({ errors: {} });
+    setChips(nextChips);
+    setOwnDraft('');
+    setIndustries(nextIndustries);
+    setDrafts({ prefer: '', avoid: '' });
+    data.set('fields', fieldsOf(nextChips));
+    data.set('industries', JSON.stringify(nextIndustries));
     startTransition(() => formAction(data));
   }
 
-  const fieldsJson = JSON.stringify(
-    picked.map((c) => ({ category_slug: c.category_slug, label: c.label, weight: c.state })),
-  );
+  const fieldsJson = fieldsOf(chips);
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-10">
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="flex flex-col gap-10">
       <FormMessage message={state.message} />
       <input type="hidden" name="fields" value={fieldsJson} />
       <input type="hidden" name="industries" value={JSON.stringify(industries)} />
@@ -163,8 +235,13 @@ export function StepTwoForm({
               value={ownDraft}
               maxLength={100}
               placeholder="Add your own"
-              onChange={(e) => setOwnDraft(e.target.value)}
+              onChange={(e) => {
+                setOwnDraft(e.target.value);
+                clearDraftError('own');
+              }}
               onKeyDown={(e) => onEnter(e, addOwn)}
+              aria-invalid={draftErrors.own ? true : undefined}
+              aria-describedby={draftErrors.own ? errorId('own') : undefined}
               className="w-32 bg-transparent outline-none placeholder:text-muted"
             />
             {ownDraft.trim() ? (
@@ -177,6 +254,7 @@ export function StepTwoForm({
         <p className={`text-sm ${picked.length > MAX_FIELDS ? 'text-danger' : 'text-muted'}`}>
           {picked.length} picked, up to {MAX_FIELDS}.
         </p>
+        <FieldError name="own" error={draftErrors.own} />
         <FieldError name="fields" error={errors.fields} />
       </fieldset>
 
@@ -199,7 +277,12 @@ export function StepTwoForm({
                     value={drafts[pref]}
                     maxLength={100}
                     placeholder={pref === 'prefer' ? 'e.g. Renewable energy' : 'e.g. Tobacco'}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [pref]: e.target.value }))}
+                    onChange={(e) => {
+                      setDrafts((d) => ({ ...d, [pref]: e.target.value }));
+                      clearDraftError(pref);
+                    }}
+                    aria-invalid={draftErrors[pref] ? true : undefined}
+                    aria-describedby={draftErrors[pref] ? errorId(pref) : undefined}
                     onKeyDown={(e) => onEnter(e, () => addIndustry(pref))}
                     className="field min-w-0 flex-1"
                   />
@@ -213,6 +296,7 @@ export function StepTwoForm({
                     Add
                   </button>
                 </div>
+                <FieldError name={pref} error={draftErrors[pref]} />
                 {list.length ? (
                   <ul className="flex flex-wrap gap-2" aria-label={`${label} list`}>
                     {list.map((i) => (
@@ -322,6 +406,7 @@ export function StepTwoForm({
         <button type="submit" disabled={pending} className="btn-primary min-w-32">
           {pending ? 'Saving…' : mode === 'profile' ? 'Save changes' : 'Finish setup'}
         </button>
+        <SubmitSummary count={Object.keys(errors).length + Object.keys(draftErrors).length} />
         {mode === 'onboarding' ? (
           <Link href="/onboarding?step=1" className="text-sm text-muted hover:text-foreground">
             Back to step 1

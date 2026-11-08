@@ -18,17 +18,29 @@ function Failed({ title, onRetry }: { title: string; onRetry: () => void }) {
 }
 
 type Props = { title: string; children: ReactNode; onRetry: () => void };
+type BoundaryState = { failed: boolean; error: unknown };
 
-class Boundary extends Component<Props, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
+/** redirect(), notFound() and friends are thrown as errors with a marker digest. */
+function isNavigationError(error: unknown): boolean {
+  const digest = (error as { digest?: unknown } | null)?.digest;
+  return (
+    typeof digest === 'string' &&
+    (digest.startsWith('NEXT_REDIRECT') || digest.startsWith('NEXT_HTTP_ERROR_FALLBACK'))
+  );
+}
+
+class Boundary extends Component<Props, BoundaryState> {
+  state: BoundaryState = { failed: false, error: null };
+  static getDerivedStateFromError(error: unknown): BoundaryState {
+    return { failed: true, error };
   }
   retry = () => {
     this.props.onRetry();
-    this.setState({ failed: false });
+    this.setState({ failed: false, error: null });
   };
   render() {
+    // Navigation errors are not failures: pass them up so Next can redirect or show not-found.
+    if (this.state.failed && isNavigationError(this.state.error)) throw this.state.error;
     return this.state.failed ? <Failed title={this.props.title} onRetry={this.retry} /> : this.props.children;
   }
 }

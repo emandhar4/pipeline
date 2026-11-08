@@ -12,7 +12,7 @@ const STAGE_LABEL = {
 function AgingList({ title, apps, now, empty }: { title: string; apps: AppRow[]; now: Date; empty: string }) {
   return (
     <div>
-      <h4 className="text-sm font-medium">{title}</h4>
+      <h3 className="text-sm font-medium">{title}</h3>
       {apps.length === 0 ? (
         <p className="mt-1 text-sm text-muted">{empty}</p>
       ) : (

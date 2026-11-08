@@ -55,11 +55,11 @@ export async function applyStep1(client: Client, userId: string, input: Step1): 
 /**
  * Writes pay floor and season first (the likeliest failure, before anything destructive), then
  * replaces the user's fields and industries (delete then insert; not one transaction,
- * see DECISIONS.md).
+ * see DECISIONS.md). onboarding_step is bumped last, so a failure part-way never marks the
+ * user as onboarded.
  */
 export async function applyStep2(client: Client, userId: string, input: Step2): Promise<void> {
   const pay = parsePayFloor(input.pay_amount, input.pay_period);
-  const step = Math.max(await currentStep(client, userId), 2);
 
   const upd = await client
     .from('profiles')
@@ -67,7 +67,6 @@ export async function applyStep2(client: Client, userId: string, input: Step2): 
       pay_floor_cents: pay.cents,
       pay_floor_period: pay.period,
       season: input.season,
-      onboarding_step: step,
     })
     .eq('user_id', userId);
   if (upd.error) throw new Error(`save step 2 failed: ${upd.error.message}`);
@@ -99,6 +98,9 @@ export async function applyStep2(client: Client, userId: string, input: Step2): 
     if (ins.error) throw new Error(`save industries failed: ${ins.error.message}`);
   }
 
+  const step = Math.max(await currentStep(client, userId), 2);
+  const done = await client.from('profiles').update({ onboarding_step: step }).eq('user_id', userId);
+  if (done.error) throw new Error(`mark step 2 failed: ${done.error.message}`);
 }
 
 export const getOnboardingState = cache(async (): Promise<OnboardingState> => {

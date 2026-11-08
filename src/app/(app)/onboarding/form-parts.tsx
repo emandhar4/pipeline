@@ -24,7 +24,7 @@ export function errorId(name: string) {
 export function FieldError({ name, error }: { name: string; error?: string }) {
   if (!error) return null;
   return (
-    <p id={errorId(name)} className="field-error">
+    <p id={errorId(name)} className="field-error" tabIndex={-1}>
       {error}
     </p>
   );
@@ -33,8 +33,23 @@ export function FieldError({ name, error }: { name: string; error?: string }) {
 export function FormMessage({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+    <p
+      role="alert"
+      tabIndex={-1}
+      data-form-error
+      className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
+    >
       {message}
+    </p>
+  );
+}
+
+/** One line beside the submit button after a failed submit; announced to screen readers. */
+export function SubmitSummary({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <p role="alert" className="text-sm text-danger">
+      {count === 1 ? '1 answer needs attention above.' : `${count} answers need attention above.`}
     </p>
   );
 }
@@ -100,7 +115,6 @@ export function ChoiceGroup({
   return (
     <fieldset
       className="flex flex-col gap-2"
-      aria-invalid={error ? true : undefined}
       aria-describedby={error ? errorId(name) : undefined}
     >
       <legend className="mb-2 text-sm font-medium">{legend}</legend>
@@ -112,6 +126,8 @@ export function ChoiceGroup({
               name={name}
               value={o.value}
               defaultChecked={defaultValue === o.value}
+              data-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId(name) : undefined}
               onChange={onChange ? () => onChange(o.value) : undefined}
             />
             <span>{o.label}</span>
