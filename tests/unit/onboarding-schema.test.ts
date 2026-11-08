@@ -5,7 +5,7 @@ const step1 = {
   career_stage: 'intern', school: 'State U', school_id: '', major: 'Industrial Engineering', major_cip: '',
   grad_date: '2027-05', work_auth: 'citizen_or_pr', home_location: 'Austin, TX', home_state: 'TX',
   school_location: 'Dallas, TX', school_state: 'TX', work_anywhere_us: false, work_states: ['TX'],
-  work_countries: [] as string[], open_to_remote: false as boolean | null,
+  work_countries: [] as string[], work_style: 'in_person',
 };
 const base2 = { industries: [], pay_amount: '', pay_period: 'year', season: 'Summer 2027' };
 
@@ -35,17 +35,33 @@ describe('step1Schema', () => {
   it('anywhere clears specific states', () => {
     expect(step1Schema.parse({ ...step1, work_anywhere_us: true, work_states: ['GA'] }).work_states).toEqual([]);
   });
-  it('needs somewhere to work', () => {
-    const nowhere = { ...step1, work_anywhere_us: false, work_states: [], work_countries: [], open_to_remote: false };
-    const r = step1Schema.safeParse(nowhere);
-    expect(r.success).toBe(false);
-    expect(r.error?.issues).toEqual([
-      expect.objectContaining({
-        path: ['work_states'],
-        message: 'Pick where you can work, or say you are open to remote work.',
-      }),
-    ]);
-    expect(step1Schema.safeParse({ ...nowhere, open_to_remote: true }).success).toBe(true);
+  it('in person or either with no places fails at work_states', () => {
+    const nowhere = { ...step1, work_anywhere_us: false, work_states: [], work_countries: [] };
+    for (const work_style of ['in_person', 'either']) {
+      const r = step1Schema.safeParse({ ...nowhere, work_style });
+      expect(r.success).toBe(false);
+      expect(r.error?.issues).toEqual([
+        expect.objectContaining({
+          path: ['work_states'],
+          message: 'Pick at least one place, or choose Remote only.',
+        }),
+      ]);
+    }
+  });
+  it('either with anywhere passes', () => {
+    const out = step1Schema.parse({ ...step1, work_style: 'either', work_anywhere_us: true, work_states: [] });
+    expect(out.work_style).toBe('either');
+    expect(out.work_anywhere_us).toBe(true);
+  });
+  it('remote only clears places', () => {
+    const out = step1Schema.parse({
+      ...step1, work_style: 'remote_only', work_anywhere_us: true, work_states: ['TX'], work_countries: ['CA'],
+    });
+    expect(out).toMatchObject({ work_style: 'remote_only', work_anywhere_us: false, work_states: [], work_countries: [] });
+  });
+  it('remote only with no places passes', () => {
+    const r = step1Schema.safeParse({ ...step1, work_style: 'remote_only', work_states: [], work_countries: [] });
+    expect(r.success).toBe(true);
   });
   it('rejects forged codes', () => {
     expect(step1Schema.safeParse({ ...step1, work_states: ['ZZ'] }).success).toBe(false);
@@ -63,12 +79,14 @@ describe('step1Schema', () => {
       'IE', 'NL', 'SE', 'NO', 'DK', 'FI', 'ES', 'IT', 'PT', 'CH', 'AT'][i]);
     expect(step1Schema.safeParse({ ...step1, work_countries: tooMany }).success).toBe(false);
   });
-  it('open_to_remote is required', () => {
-    const r = step1Schema.safeParse({ ...step1, open_to_remote: null });
-    expect(r.success).toBe(false);
-    expect(r.error?.issues).toEqual([
-      expect.objectContaining({ path: ['open_to_remote'], message: 'Choose one' }),
-    ]);
+  it('work_style is required and must be known', () => {
+    for (const work_style of ['', 'hybrid']) {
+      const r = step1Schema.safeParse({ ...step1, work_style });
+      expect(r.success).toBe(false);
+      expect(r.error?.issues).toEqual([
+        expect.objectContaining({ path: ['work_style'], message: 'Choose one' }),
+      ]);
+    }
   });
   it('no longer accepts relocate or in_state_school as input', () => {
     const out = step1Schema.parse({ ...step1, relocate: 'anywhere', in_state_school: false } as typeof step1);

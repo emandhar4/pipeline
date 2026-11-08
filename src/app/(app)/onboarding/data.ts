@@ -30,7 +30,7 @@ export function stepOneValues({ profile }: OnboardingState): StepOneValues {
     work_anywhere_us: profile.work_anywhere_us,
     work_states: profile.work_states,
     work_countries: profile.work_countries,
-    open_to_remote: profile.open_to_remote,
+    work_style: profile.work_style ?? '',
   };
 }
 

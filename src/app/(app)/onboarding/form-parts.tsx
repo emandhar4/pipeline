@@ -93,7 +93,11 @@ export function TextField({
   );
 }
 
-/** A radio group drawn as bordered rows; the native radio stays visible. */
+function hintId(name: string, value: string) {
+  return `${name}-${value}-hint`;
+}
+
+/** A radio group drawn as bordered rows; the native radio stays visible. An option's hint shows under its label. */
 export function ChoiceGroup({
   name,
   legend,
@@ -105,7 +109,7 @@ export function ChoiceGroup({
 }: {
   name: string;
   legend: ReactNode;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; hint?: string }[];
   defaultValue?: string | null;
   error?: string;
   columns?: 1 | 2 | 3;
@@ -127,10 +131,23 @@ export function ChoiceGroup({
               value={o.value}
               defaultChecked={defaultValue === o.value}
               data-invalid={error ? true : undefined}
-              aria-describedby={error ? errorId(name) : undefined}
+              aria-describedby={
+                [o.hint ? hintId(name, o.value) : '', error ? errorId(name) : ''].filter(Boolean).join(' ') ||
+                undefined
+              }
               onChange={onChange ? () => onChange(o.value) : undefined}
             />
-            <span>{o.label}</span>
+            {o.hint ? (
+              <span className="flex flex-col">
+                <span>{o.label}</span>
+                {/* Read as the option's description, not part of its name. */}
+                <span id={hintId(name, o.value)} className="hint" aria-hidden="true">
+                  {o.hint}
+                </span>
+              </span>
+            ) : (
+              <span>{o.label}</span>
+            )}
           </label>
         ))}
       </div>

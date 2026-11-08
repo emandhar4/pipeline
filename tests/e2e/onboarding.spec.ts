@@ -38,12 +38,12 @@ async function fillStep1(page: Page, { pickArea = true } = {}) {
     await page.getByRole('button', { name: 'Southeast', exact: true }).click();
     await expect(page.getByText('12 states selected')).toBeVisible();
   }
-  await remote(page).getByLabel('No', { exact: true }).check();
+  await workStyle(page).getByLabel('In person only').check();
   await page.getByRole('button', { name: 'Continue' }).click();
 }
 
-function remote(page: Page) {
-  return page.getByRole('group', { name: 'Open to remote work?' });
+function workStyle(page: Page) {
+  return page.getByRole('group', { name: 'How do you want to work?' });
 }
 
 function chip(page: Page, name: string) {
@@ -112,17 +112,17 @@ test('resume at step 2', async ({ page }) => {
   );
 });
 
-test('nothing picked and no remote shows the error', async ({ page }) => {
+test('in person with no places shows the error', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page, userB.email, '/onboarding?step=1');
   await expect(page.getByText('1 of 2')).toBeVisible();
   // Clear the saved area so nothing is picked.
   await page.getByRole('button', { name: 'Southeast', exact: true }).click();
   await expect(page.getByText('None yet')).toBeVisible();
-  await remote(page).getByLabel('No', { exact: true }).check();
+  await workStyle(page).getByLabel('In person only').check();
   await page.getByRole('button', { name: 'Continue' }).click();
 
-  const error = page.getByText('Pick where you can work, or say you are open to remote work.');
+  const error = page.getByText('Pick at least one place, or choose Remote only.');
   // At 375px the error must be in view, focused, and announced.
   await expect(error).toBeVisible();
   await expect(error).toBeFocused();
@@ -130,7 +130,7 @@ test('nothing picked and no remote shows the error', async ({ page }) => {
   await expect(page.getByText('1 answer needs attention above.')).toBeVisible();
   await expect(page.getByText('1 of 2')).toBeVisible();
 
-  await remote(page).getByLabel('Yes', { exact: true }).check();
+  await workStyle(page).getByLabel('Remote only').check();
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByText('2 of 2')).toBeVisible();
 });
@@ -237,4 +237,20 @@ test('anywhere in the US overrides states', async ({ page }) => {
   await anywhere.click();
   await expect(after.getByText('None yet')).toBeVisible();
   await expect(after.locator('input[name="work_states"]:checked')).toHaveCount(0);
+});
+
+test('remote only hides the place picker', async ({ page }) => {
+  await signIn(page, userA.email, '/profile');
+  const who = page.getByRole('region', { name: 'Who you are' });
+  await expect(who.getByRole('group', { name: 'Where can you work?' })).toBeVisible();
+
+  await workStyle(page).getByLabel('Remote only').check();
+  await expect(who.getByRole('group', { name: 'Where can you work?' })).toBeHidden();
+  await who.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page).toHaveURL(/\/profile\?saved=1$/);
+
+  await page.reload();
+  const after = page.getByRole('region', { name: 'Who you are' });
+  await expect(workStyle(page).getByLabel('Remote only')).toBeChecked();
+  await expect(after.getByRole('group', { name: 'Where can you work?' })).toBeHidden();
 });

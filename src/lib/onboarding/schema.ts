@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CAREER_STAGES, WORK_AUTH, parsePayFloor } from './options';
+import { CAREER_STAGES, WORK_AUTH, WORK_STYLES, parsePayFloor, type WorkStyle } from './options';
 import { COUNTRIES, US_STATES, isUsState, type UsState } from './regions';
 
 const text = (max: number) => z.string().trim().max(max);
@@ -9,6 +9,7 @@ const values = <T extends string>(opts: { value: T }[]) => opts.map((o) => o.val
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATE_INDEX = new Map<string, number>(US_STATES.map((s, i) => [s.code, i]));
 const COUNTRY_SET = new Set(COUNTRIES);
+const WORK_STYLE_SET = new Set<string>(WORK_STYLES.map((o) => o.value));
 
 const blankToNull = (s: string) => (s === '' ? null : s);
 
@@ -56,31 +57,32 @@ export const step1Schema = z
       .refine((xs) => xs.every((c) => COUNTRY_SET.has(c)), 'Pick countries from the list')
       .transform((xs) => [...new Set(xs)])
       .pipe(z.array(z.string()).max(20, 'Pick at most 20 countries')),
-    // Null until answered.
-    open_to_remote: z.boolean().nullable(),
+    // '' until answered.
+    work_style: z
+      .string()
+      .refine((s) => WORK_STYLE_SET.has(s), 'Choose one')
+      .transform((s) => s as WorkStyle),
   })
   .superRefine((v, ctx) => {
-    if (v.open_to_remote === null) {
-      ctx.addIssue({ code: 'custom', path: ['open_to_remote'], message: 'Choose one' });
-    }
     if (
+      v.work_style !== 'remote_only' &&
       !v.work_anywhere_us &&
       v.work_states.length === 0 &&
-      v.work_countries.length === 0 &&
-      v.open_to_remote === false
+      v.work_countries.length === 0
     ) {
       ctx.addIssue({
         code: 'custom',
         path: ['work_states'],
-        message: 'Pick where you can work, or say you are open to remote work.',
+        message: 'Pick at least one place, or choose Remote only.',
       });
     }
   })
   .transform((v) => ({
     ...v,
-    // Anywhere in the US makes a state list redundant.
-    work_states: v.work_anywhere_us ? [] : v.work_states,
-    open_to_remote: v.open_to_remote === true,
+    // Remote only has no places; Anywhere in the US makes a state list redundant.
+    ...(v.work_style === 'remote_only'
+      ? { work_anywhere_us: false, work_states: [], work_countries: [] }
+      : { work_states: v.work_anywhere_us ? [] : v.work_states }),
     // Derived; the in-state question is no longer asked.
     in_state_school:
       v.home_state !== null && v.school_state !== null ? v.home_state === v.school_state : null,

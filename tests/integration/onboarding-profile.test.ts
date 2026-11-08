@@ -45,7 +45,7 @@ describe('onboarding profile persistence', () => {
         career_stage: 'intern', school: ' State U ', school_id: '', major: 'IE', major_cip: '',
         grad_date: '2027-05', work_auth: 'citizen_or_pr', home_location: 'Austin', home_state: '',
         school_location: 'Dallas', school_state: '', work_anywhere_us: true, work_states: [],
-        work_countries: [], open_to_remote: false,
+        work_countries: [], work_style: 'in_person',
       }),
     );
     const { data, error } = await a.client.from('profiles').select('*').eq('user_id', a.id).single();
@@ -63,12 +63,12 @@ describe('onboarding profile persistence', () => {
         career_stage: 'intern', school: 'State U', school_id: '', major: 'IE', major_cip: '',
         grad_date: '2027-05', work_auth: 'citizen_or_pr', home_location: 'Atlanta, GA', home_state: 'GA',
         school_location: 'Knoxville, TN', school_state: 'TN', work_anywhere_us: false,
-        work_states: ['TN', 'GA'], work_countries: ['CA'], open_to_remote: false,
+        work_states: ['TN', 'GA'], work_countries: ['CA'], work_style: 'either',
       }),
     );
     const { data, error } = await b.client
       .from('profiles')
-      .select('home_state, school_state, in_state_school, work_anywhere_us, work_states, work_countries, open_to_remote, school_id, major_cip')
+      .select('home_state, school_state, in_state_school, work_anywhere_us, work_states, work_countries, work_style, school_id, major_cip')
       .eq('user_id', b.id)
       .single();
     expect(error).toBeNull();
@@ -79,7 +79,7 @@ describe('onboarding profile persistence', () => {
       work_anywhere_us: false,
       work_states: ['GA', 'TN'],
       work_countries: ['CA'],
-      open_to_remote: false,
+      work_style: 'either',
       school_id: null,
       major_cip: null,
     });
@@ -151,12 +151,17 @@ describe('onboarding profile persistence', () => {
         career_stage: 'intern', school: '', school_id: '', major: '', major_cip: '', grad_date: '',
         work_auth: 'citizen_or_pr', home_location: '', home_state: '', school_location: '',
         school_state: '', work_anywhere_us: false, work_states: [], work_countries: [],
-        open_to_remote: true,
+        work_style: 'remote_only',
       }),
     );
-    const p1 = await a.client.from('profiles').select('onboarding_step, grad_date').eq('user_id', a.id).single();
+    const p1 = await a.client
+      .from('profiles')
+      .select('onboarding_step, grad_date, work_style')
+      .eq('user_id', a.id)
+      .single();
     expect(p1.data?.onboarding_step).toBe(2);
     expect(p1.data?.grad_date).toBeNull();
+    expect(p1.data?.work_style).toBe('remote_only');
 
     await applyStep2(
       a.client,

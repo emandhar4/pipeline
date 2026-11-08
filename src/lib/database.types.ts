@@ -763,7 +763,6 @@ export type Database = {
           major: string | null
           major_cip: string | null
           onboarding_step: number
-          open_to_remote: boolean | null
           pay_floor_cents: number | null
           pay_floor_period: Database["public"]["Enums"]["pay_period"] | null
           relocate: Database["public"]["Enums"]["relocate_pref"] | null
@@ -778,6 +777,7 @@ export type Database = {
           work_auth: string | null
           work_countries: string[]
           work_states: string[]
+          work_style: string | null
         }
         Insert: {
           ai_mode?: Database["public"]["Enums"]["ai_mode"] | null
@@ -791,7 +791,6 @@ export type Database = {
           major?: string | null
           major_cip?: string | null
           onboarding_step?: number
-          open_to_remote?: boolean | null
           pay_floor_cents?: number | null
           pay_floor_period?: Database["public"]["Enums"]["pay_period"] | null
           relocate?: Database["public"]["Enums"]["relocate_pref"] | null
@@ -806,6 +805,7 @@ export type Database = {
           work_auth?: string | null
           work_countries?: string[]
           work_states?: string[]
+          work_style?: string | null
         }
         Update: {
           ai_mode?: Database["public"]["Enums"]["ai_mode"] | null
@@ -819,7 +819,6 @@ export type Database = {
           major?: string | null
           major_cip?: string | null
           onboarding_step?: number
-          open_to_remote?: boolean | null
           pay_floor_cents?: number | null
           pay_floor_period?: Database["public"]["Enums"]["pay_period"] | null
           relocate?: Database["public"]["Enums"]["relocate_pref"] | null
@@ -834,6 +833,7 @@ export type Database = {
           work_auth?: string | null
           work_countries?: string[]
           work_states?: string[]
+          work_style?: string | null
         }
         Relationships: [
           {

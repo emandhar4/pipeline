@@ -52,7 +52,7 @@ export async function applyStep1(client: Client, userId: string, input: Step1): 
       work_anywhere_us: input.work_anywhere_us,
       work_states: input.work_states,
       work_countries: input.work_countries,
-      open_to_remote: input.open_to_remote,
+      work_style: input.work_style,
       onboarding_step: step,
     })
     .eq('user_id', userId);

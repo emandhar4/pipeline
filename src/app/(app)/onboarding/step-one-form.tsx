@@ -1,7 +1,7 @@
 'use client';
 
 import { startTransition, useActionState, useRef, useState } from 'react';
-import { CAREER_STAGES, WORK_AUTH } from '@/lib/onboarding/options';
+import { CAREER_STAGES, WORK_AUTH, WORK_STYLES } from '@/lib/onboarding/options';
 import { US_STATES, stateFromLocation } from '@/lib/onboarding/regions';
 import { saveStepOne, type FormMode, type FormState } from './actions';
 import { Combobox } from './combobox';
@@ -25,13 +25,8 @@ export type StepOneValues = {
   work_anywhere_us: boolean;
   work_states: string[];
   work_countries: string[];
-  open_to_remote: boolean | null;
+  work_style: string;
 };
-
-const YES_NO = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'no', label: 'No' },
-];
 
 // "Outside the US" posts '' like "Choose…", but the select needs its own value to show it.
 const OUTSIDE = 'outside';
@@ -85,6 +80,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
   const [schoolLoc, setSchoolLoc] = useState(values.school_location);
   const [homeState, setHomeState] = useState(values.home_state);
   const [schoolState, setSchoolState] = useState(values.school_state);
+  const [workStyle, setWorkStyle] = useState(values.work_style);
   const errors = state.errors ?? {};
   const formRef = useRef<HTMLFormElement>(null);
   useFocusOnError(formRef, state, Object.keys(errors).length > 0 || !!state.message);
@@ -193,24 +189,28 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
         />
       </div>
 
-      <WhereCanYouWork
-        homeState={homeState}
-        schoolState={schoolState}
-        defaultAnywhere={values.work_anywhere_us}
-        defaultStates={values.work_states}
-        defaultCountries={values.work_countries}
-        statesError={errors.work_states}
-        countriesError={errors.work_countries}
+      <ChoiceGroup
+        name="work_style"
+        legend="How do you want to work?"
+        options={WORK_STYLES}
+        defaultValue={values.work_style}
+        error={errors.work_style}
+        onChange={setWorkStyle}
       />
 
-      <ChoiceGroup
-        name="open_to_remote"
-        legend="Open to remote work?"
-        options={YES_NO}
-        defaultValue={values.open_to_remote === null ? null : values.open_to_remote ? 'yes' : 'no'}
-        error={errors.open_to_remote}
-        columns={3}
-      />
+      {/* Remote only hides the picker. The disabled fieldset posts none of its fields but keeps
+          the picker's state, so switching back restores the places. */}
+      <fieldset disabled={workStyle === 'remote_only'} hidden={workStyle === 'remote_only'}>
+        <WhereCanYouWork
+          homeState={homeState}
+          schoolState={schoolState}
+          defaultAnywhere={values.work_anywhere_us}
+          defaultStates={values.work_states}
+          defaultCountries={values.work_countries}
+          statesError={errors.work_states}
+          countriesError={errors.work_countries}
+        />
+      </fieldset>
 
       <div className="flex items-center gap-4 border-t border-line pt-6">
         <button type="submit" disabled={pending} className="btn-primary min-w-32">

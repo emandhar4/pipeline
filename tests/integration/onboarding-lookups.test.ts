@@ -44,7 +44,7 @@ function step1(over: Partial<Record<string, unknown>> = {}): Step1 {
     work_anywhere_us: true,
     work_states: [],
     work_countries: [],
-    open_to_remote: true,
+    work_style: 'either',
     ...over,
   });
 }

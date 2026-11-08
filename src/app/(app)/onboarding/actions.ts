@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import type { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { resolveStepOneLookups } from '@/lib/onboarding/lookups';
+import { WORK_STYLES } from '@/lib/onboarding/options';
 import { saveStep1, saveStep2 } from '@/lib/onboarding/profile';
 import { createClient } from '@/lib/supabase/server';
 import { loadCategories } from './data';
@@ -57,13 +58,6 @@ function json(formData: FormData, name: string): unknown {
   }
 }
 
-/** 'yes' and 'no' map to booleans; anything else (unanswered or not shown) is unknown. */
-function yesNo(value: string): boolean | null {
-  if (value === 'yes') return true;
-  if (value === 'no') return false;
-  return null;
-}
-
 function modeOf(mode: unknown): FormMode {
   return mode === 'profile' ? 'profile' : 'onboarding';
 }
@@ -91,13 +85,13 @@ export async function saveStepOne(
     work_anywhere_us: text(formData, 'work_anywhere_us') === 'on',
     work_states: formData.getAll('work_states').filter((v) => typeof v === 'string'),
     work_countries: countries,
-    open_to_remote: yesNo(text(formData, 'open_to_remote')),
+    work_style: text(formData, 'work_style'),
   };
   const parsed = step1Schema.safeParse(input);
   if (!parsed.success) {
     const errors = fieldErrors(parsed.error);
     // The schema's cross-field checks only run once the other fields pass; report this one alongside them.
-    if (input.open_to_remote === null) errors.open_to_remote ??= 'Choose one';
+    if (!WORK_STYLES.some((o) => o.value === input.work_style)) errors.work_style ??= 'Choose one';
     return { errors };
   }
 

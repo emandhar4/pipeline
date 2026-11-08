@@ -13,6 +13,14 @@ export const WORK_AUTH: Option<'citizen_or_pr' | 'no_sponsorship_needed' | 'need
   { value: 'needs_sponsorship', label: 'Will need visa sponsorship' },
 ];
 
+export type WorkStyle = 'in_person' | 'either' | 'remote_only';
+
+export const WORK_STYLES: (Option<WorkStyle> & { hint: string })[] = [
+  { value: 'in_person', label: 'In person only', hint: 'Jobs only in the places I picked.' },
+  { value: 'either', label: 'In person or remote', hint: 'My places, plus remote jobs anywhere in the US.' },
+  { value: 'remote_only', label: 'Remote only', hint: 'Remote jobs anywhere in the US.' },
+];
+
 export const RELOCATE: Option<'no' | 'within_region' | 'anywhere'>[] = [
   { value: 'no', label: 'No, I need to stay where I am' },
   { value: 'within_region', label: 'Within my region' },

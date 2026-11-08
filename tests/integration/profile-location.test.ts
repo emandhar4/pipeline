@@ -32,12 +32,13 @@ describe('profile location columns', () => {
     }
   });
 
-  it('rejects forged state and country codes on a direct update', async () => {
+  it('rejects forged state, country and work style values on a direct update', async () => {
     const bad: Record<string, unknown>[] = [
       { work_states: ['ZZ'] },
       { work_countries: ['US'] },
       { work_countries: [null] },
       { work_countries: ['us'] },
+      { work_style: 'hybrid' },
     ];
     for (const patch of bad) {
       const res = await u.client.from('profiles').update(patch).eq('user_id', u.id);
@@ -45,7 +46,7 @@ describe('profile location columns', () => {
     }
     const ok = await u.client
       .from('profiles')
-      .update({ work_states: ['GA'], work_countries: ['CA'] })
+      .update({ work_states: ['GA'], work_countries: ['CA'], work_style: 'either' })
       .eq('user_id', u.id);
     expect(ok.error).toBeNull();
   });
