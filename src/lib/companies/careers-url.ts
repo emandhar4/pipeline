@@ -56,9 +56,9 @@ export function parseCareersUrl(url: string): ParsedBoard | null {
   return null
 }
 
-/** Up to 3 distinct board-slug guesses: compact, hyphenated, first word. */
+/** Up to 2 distinct board-slug guesses: compact and hyphenated. No bare first word ("Bank of America" must not match "bank"). */
 export function slugCandidates(name: string): string[] {
   const words = normalizeCompany(name).split(' ').filter(Boolean)
   if (words.length === 0) return []
-  return [...new Set([words.join(''), words.join('-'), words[0]])]
+  return [...new Set([words.join(''), words.join('-')])]
 }

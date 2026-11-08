@@ -39,8 +39,9 @@ describe('parseCareersUrl', () => {
 })
 
 describe('slugCandidates', () => {
-  it('gives compact, hyphenated and first-word forms', () => {
-    expect(slugCandidates('Acme Robotics, Inc.')).toEqual(['acmerobotics', 'acme-robotics', 'acme'])
+  it('gives compact and hyphenated forms, never a bare first word', () => {
+    expect(slugCandidates('Acme Robotics, Inc.')).toEqual(['acmerobotics', 'acme-robotics'])
+    expect(slugCandidates('Bank of America')).not.toContain('bank')
   })
   it('dedupes single words and handles empty input', () => {
     expect(slugCandidates('Stripe')).toEqual(['stripe'])

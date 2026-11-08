@@ -104,4 +104,51 @@ describe('resolveCompany', () => {
     }
     await expect(resolveCompany(http, { name: 'Acme', careersUrl: null })).resolves.toHaveProperty('notCovered')
   })
+
+  it('never probes a bare first word for multi-word names', async () => {
+    const { http, calls } = fakeHttp(() => notFound)
+    await resolveCompany(http, { name: 'Bank of America', careersUrl: null })
+    expect(calls.length).toBeGreaterThan(0)
+    expect(calls.some((u) => /[/.]bank([/.?]|$)/.test(u.replace('bankofamerica', '').replace('bank-of-america', '')))).toBe(false)
+  })
+
+  it('reports unchecked when no hit and any probe was transient', async () => {
+    let n = 0
+    const { http } = fakeHttp(() => (++n === 5 ? { ok: false, status: 503, reason: 'HTTP 503 after 3 retries' } : notFound))
+    expect(await resolveCompany(http, { name: 'Acme Robotics', careersUrl: null })).toEqual({
+      notCovered: 'Could not check its job board this run.',
+    })
+    expect(n).toBe(12)
+  })
+
+  it.each([403, 408])('treats HTTP %i as transient', async (status) => {
+    const { http } = fakeHttp(() => ({ ok: false, status, reason: `HTTP ${status}` }))
+    expect(await resolveCompany(http, { name: 'Acme', careersUrl: null })).toEqual({
+      notCovered: 'Could not check its job board this run.',
+    })
+  })
+
+  // Reason strings copied from src/finder/http.ts (not exported there).
+  it.each([
+    ['HTTP 503 after 3 retries', 'Could not check its job board this run.'],
+    ['timeout', 'Could not check its job board this run.'],
+    ['network error: ECONNRESET', 'Could not check its job board this run.'],
+    ['HTTP 404', NO_BOARD],
+    ['invalid JSON', NO_BOARD],
+    ['invalid URL', NO_BOARD],
+  ])('classifies the http layer reason %s', async (reason, copy) => {
+    const { http } = fakeHttp(() => ({ ok: false, reason }))
+    expect(await resolveCompany(http, { name: 'Acme', careersUrl: null })).toEqual({ notCovered: copy })
+  })
+
+  it('resolves a Workday careers link via fetchBoard', async () => {
+    const { http, calls } = fakeHttp(() => ({ ok: true, status: 200, data: { jobPostings: [], total: 0 } }))
+    const r = await resolveCompany(http, { name: 'Acme', careersUrl: 'https://acme.wd5.myworkdayjobs.com/en-US/External' })
+    expect(r).toEqual({
+      ats: 'workday',
+      token: 'acme',
+      meta: { host: 'acme.wd5.myworkdayjobs.com', tenant: 'acme', site: 'External' },
+    })
+    expect(calls[0]).toBe('https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/External/jobs')
+  })
 })

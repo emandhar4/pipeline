@@ -1,9 +1,9 @@
-import { parseCareersUrl, slugCandidates } from '../lib/companies/careers-url'
+import { parseCareersUrl, slugCandidates, type ParsedBoard } from '../lib/companies/careers-url'
 import type { Http } from './http'
 import { fetchBoard } from './sources'
 import type { AtsKind, BoardCompany } from './types'
 
-export type Resolved = { ats: AtsKind; token: string; meta: Record<string, unknown> }
+export type Resolved = ParsedBoard
 export type ResolveResult = Resolved | { notCovered: string }
 
 const NO_BOARD = 'No public job board found from the name. Add its careers page link.'
@@ -22,7 +22,8 @@ async function probe(http: Http, name: string, r: Resolved): Promise<Probe> {
     if (res.status === 'ok') return { kind: 'ok', jobs: res.postings.length }
     const reason = res.reason ?? ''
     if (res.status === 'skipped') return { kind: 'absent' }
-    if (/^HTTP (4\d\d)/.test(reason) && !/^HTTP 429/.test(reason)) return { kind: 'absent' }
+    if (/^HTTP (403|408|429)\b/.test(reason)) return { kind: 'transient' } // bot blocks, timeouts, rate limits
+    if (/^HTTP 4\d\d/.test(reason)) return { kind: 'absent' }
     if (/^HTTP \d{3}|timeout|network error/.test(reason)) return { kind: 'transient' }
     return { kind: 'absent' } // unexpected shape, invalid JSON, invalid URL: not a readable board
   } catch {
@@ -47,18 +48,16 @@ export async function resolveCompany(
     return { notCovered: p.kind === 'transient' ? UNCHECKED : UNREADABLE }
   }
 
-  let probes = 0
   let transient = 0
   for (const token of slugCandidates(c.name)) {
     for (const ats of PROBE_ORDER) {
       const candidate: Resolved = { ats, token, meta: {} }
       const p = await probe(http, c.name, candidate)
-      probes++
       if (p.kind === 'ok' && p.jobs >= 1) return candidate
       if (p.kind === 'transient') transient++
     }
   }
-  // Every probe failed with a non-404 error: do not record "no board" for a transient outage.
-  if (probes > 0 && transient === probes) return { notCovered: UNCHECKED }
+  // Any transient failure without a hit means we can't say there is no board: leave it for the next run.
+  if (transient > 0) return { notCovered: UNCHECKED }
   return { notCovered: NO_BOARD }
 }
