@@ -166,3 +166,12 @@ Phase 2 uses real data only: no fictional seed rows in shared tables. The dashbo
 - Structured regions (country plus subdivision) and an open-to-remote preference, replacing free-text locations (I3).
 - Season vocabulary (term plus year) and whether a user may pick more than one season (M7).
 - A "search requested" signal, and selecting users to search by "has a primary field and a season" instead of `onboarding_step` (M8).
+
+## Phase 2b: onboarding UX (decided 2026-11-08, not yet built)
+
+User feedback after trying Phase 2 onboarding. Agreed fixes, to be planned in `docs/superpowers/plans/` before building:
+
+1. **School and major type-ahead.** Comboboxes that narrow as you type. Schools come from the public US Dept. of Education College Scorecard list, seeded into the existing global `schools` table. Majors come from a trimmed CIP program list. Both have a "not listed, use what I typed" fallback.
+2. **Concrete relocation.** Replace `no` / `within_region` / `anywhere` with two questions. "Where can you work?" is a multi-select of US states, with shortcuts for home state, school state and named areas (e.g. Southeast), plus "Anywhere in the US". "Open to remote?" is yes or no. "Anywhere" means US only, and non-US work requires adding a country explicitly. This resolves open item I3 (structured regions).
+3. **Resume-first onboarding.** The optional first step is uploading a resume (PDF). It goes to a private Supabase Storage bucket with RLS keyed to `auth.uid()`. Text is extracted server-side to prefill school, major, grad date and location. Primary and secondary fields are suggested from the resume, and the user reviews everything before saving.
+   - **Ruling (user):** use deterministic **keyword matching** for now (text extraction plus a keyword-to-category map), with no API cost. Add an Anthropic API key (Claude Haiku, server-only, with a monthly cap) **at the very end of the build** to upgrade resume reading.
