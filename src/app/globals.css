@@ -85,6 +85,36 @@ body {
     @apply text-sm text-danger;
   }
 
+  /*
+   * Type-ahead list under a .field. The highlighted row gets the accent rule on its left edge,
+   * echoing the header nav; the free-text row sits apart under a hairline.
+   */
+  .combo-badge {
+    @apply rounded-full border border-line px-2 py-px text-[11px] leading-4 tracking-wide text-muted;
+  }
+  .combo-list {
+    @apply absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-line py-1 shadow-lg shadow-black/5;
+    background: var(--background);
+  }
+  .combo-option {
+    @apply flex cursor-pointer flex-col gap-0.5 border-l-2 border-transparent px-3 py-2 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3;
+  }
+  .combo-option:hover {
+    @apply bg-foreground/4;
+  }
+  .combo-option[aria-selected="true"] {
+    @apply border-accent bg-accent/8;
+  }
+  .combo-option[data-kind="free"] {
+    @apply text-muted;
+  }
+  .combo-option[data-kind="free"]:not(:first-child) {
+    @apply mt-1 border-t border-t-line pt-2.5;
+  }
+  .combo-detail {
+    @apply shrink-0 text-xs text-muted;
+  }
+
   /* A radio row: the native control stays visible, the row lights up when chosen. */
   .choice {
     @apply flex cursor-pointer items-start gap-3 rounded-md border border-line px-3 py-2.5 text-sm leading-5 hover:border-foreground/30 has-checked:border-accent has-checked:bg-accent/5;
