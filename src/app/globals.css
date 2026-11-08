@@ -148,3 +148,30 @@ body {
     @apply grid cursor-pointer place-items-center rounded-[5px] px-3 text-muted has-checked:bg-foreground has-checked:text-background;
   }
 }
+
+@layer components {
+  /* Dashboard panels: a heading on a top rule, no boxes. */
+  .panel {
+    @apply border-t border-line pt-4;
+  }
+  .panel-title {
+    @apply text-base font-semibold tracking-tight;
+  }
+  .panel-note {
+    @apply mt-3 max-w-prose text-sm text-muted;
+  }
+  .bar-track {
+    @apply h-2 overflow-hidden rounded-full bg-line;
+  }
+  .bar-fill {
+    @apply h-full rounded-full bg-accent;
+  }
+  .skeleton {
+    @apply animate-pulse rounded bg-line;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+    }
+  }
+}

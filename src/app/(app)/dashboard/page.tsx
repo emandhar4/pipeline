@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { getOnboardingState } from '@/lib/onboarding/profile';
+import { HealthPanel } from './health-panel';
+import { PostingsPanel } from './postings-panel';
+import { TodayPanel } from './today-panel';
 
 export const metadata: Metadata = { title: 'Dashboard · Pipeline' };
 
@@ -19,18 +22,43 @@ async function SignedInAs() {
   return <span className="font-medium text-foreground">{user.email}</span>;
 }
 
-// Placeholder until Phase 2 Task 4 builds the real dashboard.
+function PanelSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="panel" aria-busy="true">
+      <div className="skeleton h-5 w-40" />
+      <div className="mt-4 space-y-3">
+        {Array.from({ length: rows }, (_, i) => (
+          <div key={i} className="skeleton h-4 w-full" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   return (
     <Suspense fallback={<div className="flex-1" aria-busy="true" />}>
       <RequireOnboarded>
-        <main className="mx-auto w-full max-w-5xl px-6 py-12">
-          <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
-          <p className="mt-2 text-sm text-muted">
-            Signed in as <SignedInAs />
-          </p>
-          <p className="mt-8 max-w-prose text-sm text-muted">
-            Your matches and next steps will show up here.
+        <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+          <h1 className="sr-only">Dashboard</h1>
+          <div className="grid gap-10 md:grid-cols-2 md:gap-x-12">
+            <Suspense fallback={<PanelSkeleton />}>
+              <TodayPanel />
+            </Suspense>
+            <Suspense fallback={<PanelSkeleton />}>
+              <PostingsPanel />
+            </Suspense>
+            <div className="md:col-span-2">
+              <Suspense fallback={<PanelSkeleton rows={5} />}>
+                <HealthPanel />
+              </Suspense>
+            </div>
+          </div>
+          <p className="mt-12 text-sm text-muted">
+            Signed in as{' '}
+            <Suspense fallback={null}>
+              <SignedInAs />
+            </Suspense>
           </p>
         </main>
       </RequireOnboarded>
