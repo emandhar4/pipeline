@@ -29,6 +29,11 @@ describe('parsePayFloor', () => {
     expect(() => parsePayFloor('1.234', 'hour')).toThrow();
     expect(() => parsePayFloor('-5', 'hour')).toThrow();
   });
+  it('rejects amounts above the int4 cents limit', () => {
+    expect(parsePayFloor('21474836.47', 'year').cents).toBe(2147483647);
+    expect(() => parsePayFloor('21474836.48', 'year')).toThrow('too large');
+    expect(() => parsePayFloor('99999999999', 'year')).toThrow('too large');
+  });
 });
 
 describe('option lists', () => {

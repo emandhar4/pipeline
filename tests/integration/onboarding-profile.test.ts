@@ -121,7 +121,8 @@ describe('onboarding profile persistence', () => {
   });
 
   it('throws on a Supabase error instead of swallowing it', async () => {
-    // user B writing with A's id is blocked by RLS on insert
+    // With A's id, B's profile update and deletes match no rows (RLS filters them, no error);
+    // the insert violates RLS and must surface as a thrown error.
     await expect(
       applyStep2(
         b.client,

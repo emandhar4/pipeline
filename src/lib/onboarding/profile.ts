@@ -52,12 +52,24 @@ export async function applyStep1(client: Client, userId: string, input: Step1): 
 }
 
 /**
- * Replaces the user's fields and industries (delete then insert; not one transaction,
- * see DECISIONS.md), then writes pay floor and season.
+ * Writes pay floor and season first (the likeliest failure, before anything destructive), then
+ * replaces the user's fields and industries (delete then insert; not one transaction,
+ * see DECISIONS.md).
  */
 export async function applyStep2(client: Client, userId: string, input: Step2): Promise<void> {
   const pay = parsePayFloor(input.pay_amount, input.pay_period);
   const step = Math.max(await currentStep(client, userId), 2);
+
+  const upd = await client
+    .from('profiles')
+    .update({
+      pay_floor_cents: pay.cents,
+      pay_floor_period: pay.period,
+      season: input.season,
+      onboarding_step: step,
+    })
+    .eq('user_id', userId);
+  if (upd.error) throw new Error(`save step 2 failed: ${upd.error.message}`);
 
   const delFields = await client.from('profile_fields').delete().eq('user_id', userId);
   if (delFields.error) throw new Error(`clear fields failed: ${delFields.error.message}`);
@@ -86,16 +98,6 @@ export async function applyStep2(client: Client, userId: string, input: Step2): 
     if (ins.error) throw new Error(`save industries failed: ${ins.error.message}`);
   }
 
-  const upd = await client
-    .from('profiles')
-    .update({
-      pay_floor_cents: pay.cents,
-      pay_floor_period: pay.period,
-      season: input.season,
-      onboarding_step: step,
-    })
-    .eq('user_id', userId);
-  if (upd.error) throw new Error(`save step 2 failed: ${upd.error.message}`);
 }
 
 export async function getOnboardingState(): Promise<OnboardingState> {

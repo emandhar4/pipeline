@@ -19,6 +19,8 @@ export const RELOCATE: Option<'no' | 'within_region' | 'anywhere'>[] = [
   { value: 'anywhere', label: 'Anywhere' },
 ];
 
+const INT4_MAX = 2147483647;
+
 export type PayPeriod = 'hour' | 'year';
 
 // Term start dates as [month index, day]. A term "has started" on its start date.
@@ -55,5 +57,7 @@ export function parsePayFloor(
   if (!/^(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(cleaned)) {
     throw new Error('Enter pay as a number with at most 2 decimal places');
   }
-  return { cents: Math.round(Number(cleaned) * 100), period };
+  const cents = Math.round(Number(cleaned) * 100);
+  if (cents > INT4_MAX) throw new Error('That pay amount is too large.');
+  return { cents, period };
 }
