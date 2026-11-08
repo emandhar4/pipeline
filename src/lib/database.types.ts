@@ -496,6 +496,24 @@ export type Database = {
         }
         Relationships: []
       }
+      majors: {
+        Row: {
+          cip_code: string
+          family: string
+          title: string
+        }
+        Insert: {
+          cip_code: string
+          family: string
+          title: string
+        }
+        Update: {
+          cip_code?: string
+          family?: string
+          title?: string
+        }
+        Relationships: []
+      }
       posting_matches: {
         Row: {
           ai_score: number | null
@@ -899,19 +917,31 @@ export type Database = {
       }
       schools: {
         Row: {
+          alias: string | null
+          city: string | null
           id: string
           name: string
+          search_text: string | null
           state: string | null
+          unitid: number | null
         }
         Insert: {
+          alias?: string | null
+          city?: string | null
           id?: string
           name: string
+          search_text?: string | null
           state?: string | null
+          unitid?: number | null
         }
         Update: {
+          alias?: string | null
+          city?: string | null
           id?: string
           name?: string
+          search_text?: string | null
           state?: string | null
+          unitid?: number | null
         }
         Relationships: []
       }
@@ -999,6 +1029,38 @@ export type Database = {
     Functions: {
       count_users_without_profile: { Args: never; Returns: number }
       hook_require_invite: { Args: { event: Json }; Returns: Json }
+      search_majors: {
+        Args: { lim?: number; q: string }
+        Returns: {
+          cip_code: string
+          family: string
+          title: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "majors"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      search_schools: {
+        Args: { lim?: number; q: string }
+        Returns: {
+          alias: string | null
+          city: string | null
+          id: string
+          name: string
+          search_text: string | null
+          state: string | null
+          unitid: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "schools"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       ai_job_kind:
