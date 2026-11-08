@@ -46,3 +46,8 @@ export async function signIn(page: Page, email: string, next = '/dashboard') {
     `/auth/confirm?token_hash=${encodeURIComponent(hash)}&type=magiclink&next=${encodeURIComponent(next)}`,
   );
 }
+
+/** The onboarding step marked current in the progress marker. */
+export function currentStep(page: Page) {
+  return page.getByRole('navigation', { name: 'Setup progress' }).locator('[aria-current="step"]');
+}

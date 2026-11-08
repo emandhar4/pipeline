@@ -5,8 +5,19 @@ import { CAREER_STAGES, WORK_AUTH, WORK_STYLES } from '@/lib/onboarding/options'
 import { US_STATES, stateFromLocation } from '@/lib/onboarding/regions';
 import { saveStepOne, type FormMode, type FormState } from './actions';
 import { Combobox } from './combobox';
-import { ChoiceGroup, FieldError, FormMessage, SubmitSummary, TextField, errorId } from './form-parts';
+import {
+  ChoiceGroup,
+  FieldBadge,
+  FieldError,
+  FormMessage,
+  PrefillNotice,
+  SubmitSummary,
+  TextField,
+  badgeId,
+  errorId,
+} from './form-parts';
 import { findMajors, findSchools } from './lookup-actions';
+import { answersFilled } from './prefill';
 import { useFocusOnError } from './use-focus-on-error';
 import { WhereCanYouWork } from './where-can-you-work';
 
@@ -41,25 +52,33 @@ function StateSelect({
   value,
   onChange,
   error,
+  badge,
 }: {
   name: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  badge?: string;
 }) {
+  const describedBy = [badge ? badgeId(name) : null, error ? errorId(name) : null]
+    .filter(Boolean)
+    .join(' ');
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={name} className="text-sm font-medium">
-        {label}
-      </label>
+      <div className="flex items-baseline gap-2">
+        <label htmlFor={name} className="text-sm font-medium">
+          {label}
+        </label>
+        <FieldBadge name={name}>{badge}</FieldBadge>
+      </div>
       <select
         id={name}
         className="field"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId(name) : undefined}
+        aria-describedby={describedBy || undefined}
       >
         <option value="">Choose…</option>
         {US_STATES.map((s) => (
@@ -75,7 +94,18 @@ function StateSelect({
   );
 }
 
-export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneValues }) {
+const FROM_RESUME = 'from resume';
+
+export function StepOneForm({
+  mode,
+  values,
+  fromResume = [],
+}: {
+  mode: FormMode;
+  values: StepOneValues;
+  /** Fields pre-filled from the user's resume; each shows a badge. */
+  fromResume?: string[];
+}) {
   const [state, formAction, pending] = useActionState(saveStepOne.bind(null, mode), {} as FormState);
   const [schoolLoc, setSchoolLoc] = useState(values.school_location);
   const [homeState, setHomeState] = useState(values.home_state);
@@ -84,6 +114,8 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
   const errors = state.errors ?? {};
   const formRef = useRef<HTMLFormElement>(null);
   useFocusOnError(formRef, state, Object.keys(errors).length > 0 || !!state.message);
+  const badge = (name: keyof StepOneValues) => (fromResume.includes(name) ? FROM_RESUME : undefined);
+  const filled = answersFilled(fromResume);
 
   // Submitting through onSubmit (not the form action prop) skips React's automatic form
   // reset, so a failed save keeps everything the user typed.
@@ -96,6 +128,12 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
   return (
     <form ref={formRef} onSubmit={onSubmit} noValidate className="flex flex-col gap-8">
       <FormMessage message={state.message} />
+      {filled > 0 ? (
+        <PrefillNotice>
+          We filled in {filled} {filled === 1 ? 'answer' : 'answers'} from your resume. Check them
+          before you continue.
+        </PrefillNotice>
+      ) : null}
 
       <ChoiceGroup
         name="career_stage"
@@ -123,6 +161,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
             if (st) setSchoolState(st);
           }}
           error={errors.school}
+          badge={badge('school')}
         />
         <Combobox
           name="major"
@@ -133,6 +172,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
           search={findMajors}
           allowFreeText
           error={errors.major}
+          badge={badge('major')}
         />
       </div>
 
@@ -144,6 +184,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
         hint="Past or expected. Leave blank if it does not apply."
         defaultValue={values.grad_date}
         error={errors.grad_date}
+        badge={badge('grad_date')}
         className="field sm:max-w-56"
       />
 
@@ -162,6 +203,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
           defaultValue={values.home_location}
           autoComplete="address-level2"
           error={errors.home_location}
+          badge={badge('home_location')}
           maxLength={200}
         />
         <StateSelect
@@ -170,6 +212,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
           value={homeState}
           onChange={setHomeState}
           error={errors.home_state}
+          badge={badge('home_state')}
         />
         <TextField
           name="school_location"
@@ -178,6 +221,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
           value={schoolLoc}
           onChange={(e) => setSchoolLoc(e.target.value)}
           error={errors.school_location}
+          badge={badge('school_location')}
           maxLength={200}
         />
         <StateSelect
@@ -186,6 +230,7 @@ export function StepOneForm({ mode, values }: { mode: FormMode; values: StepOneV
           value={schoolState}
           onChange={setSchoolState}
           error={errors.school_state}
+          badge={badge('school_state')}
         />
       </div>
 

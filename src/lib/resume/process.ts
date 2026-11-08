@@ -1,22 +1,15 @@
 import 'server-only';
 import { extractPdfText, type ExtractResult } from './extract';
+import { RESUME_MESSAGES, UPLOAD_FAILED } from './messages';
 import { isOwnResumePath, RESUME_BUCKET } from './paths';
 import { resumeReader, type Client } from './reader';
 import type { ResumeSuggestions } from './types';
 
 export type ProcessResult = { ok: true; suggestions: ResumeSuggestions } | { ok: false; message: string };
 
-export const UPLOAD_FAILED = 'Upload failed. Try again in a minute, or skip this step.';
+export { UPLOAD_FAILED };
 
-const MESSAGES: Record<Extract<ExtractResult, { ok: false }>['reason'], string> = {
-  too_big: 'That file is over 5 MB. Upload a smaller PDF, or skip this step.',
-  not_pdf: "That file isn't a PDF. Upload a PDF, or skip this step.",
-  too_many_pages: 'That PDF is over 10 pages. Upload just your resume, or skip this step.',
-  unreadable:
-    "We couldn't open that PDF. It may be password-protected. Try another file, or skip this step.",
-  no_text:
-    "We couldn't find any text in that PDF (it may be a scanned image). Skip this step and fill in your answers by hand.",
-};
+const MESSAGES: Record<Extract<ExtractResult, { ok: false }>['reason'], string> = RESUME_MESSAGES;
 
 /** Slugs of `field_categories` in display order. Throws on a database error. */
 export async function loadCategoryOrder(client: Client): Promise<string[]> {

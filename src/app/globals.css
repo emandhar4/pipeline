@@ -175,6 +175,21 @@ body {
     @apply text-muted line-through decoration-danger/60;
   }
 
+  /* The resume drop target: a dashed sheet that fills in while a file is dragged over it. */
+  .dropzone {
+    @apply flex cursor-pointer flex-col items-center gap-3 rounded-lg border border-dashed border-line px-5 py-10 text-center text-sm transition-[border-color,background-color] hover:border-foreground/30;
+  }
+  .dropzone[data-dragging="true"] {
+    @apply border-solid border-accent bg-accent/5;
+  }
+  .dropzone[aria-disabled="true"] {
+    @apply cursor-progress opacity-70;
+  }
+  .dropzone:has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   /* A two-way toggle built from radios. */
   .segment {
     @apply inline-flex h-10 rounded-md border border-line p-0.5 text-sm;

@@ -3,14 +3,27 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { getOnboardingState } from '@/lib/onboarding/profile';
-import { loadCategories, seasonsFor, stepOneValues, stepTwoValues } from './data';
+import {
+  latestResumeSuggestions,
+  loadCategories,
+  seasonsFor,
+  stepOneValues,
+  stepTwoValues,
+} from './data';
 import { StepMarker } from './form-parts';
+import { prefillStepOne, prefillStepTwo } from './prefill';
+import { ResumeStep } from './resume-step';
 import { StepOneForm } from './step-one-form';
 import { StepTwoForm } from './step-two-form';
 
 export const metadata: Metadata = { title: 'Set up · Pipeline' };
 
 const STEPS = {
+  0: {
+    title: 'Start with your resume',
+    intro:
+      'Optional. Pipeline reads it to fill in your answers and suggest the fields to search. You check everything before it is saved.',
+  },
   1: {
     title: 'Who you are',
     intro: 'The basics Pipeline needs to tell which postings you can apply to.',
@@ -22,24 +35,36 @@ const STEPS = {
 } as const;
 
 async function Onboarding({ searchParams }: Pick<PageProps<'/onboarding'>, 'searchParams'>) {
-  await getCurrentUser();
-  const [params, state] = await Promise.all([searchParams, getOnboardingState()]);
+  const { id: userId } = await getCurrentUser();
+  const [params, state, suggestions] = await Promise.all([
+    searchParams,
+    getOnboardingState(),
+    latestResumeSuggestions(),
+  ]);
   // A finished setup is edited on the profile page, not by re-running onboarding.
   if (state.step >= 2 && params.step === undefined) redirect('/profile');
-  // Step 2 opens once step 1 is saved; ?step=1 lets the user go back to it.
-  const step = params.step === '1' || state.step < 1 ? 1 : 2;
+  // A new user without an uploaded resume starts at the optional resume step. Step 2 opens
+  // once step 1 is saved; ?step=resume and ?step=1 let the user go back.
+  let step: 0 | 1 | 2;
+  if (params.step === 'resume') step = 0;
+  else if (params.step === undefined && state.step === 0 && !suggestions) step = 0;
+  else step = params.step === '1' || state.step < 1 ? 1 : 2;
 
   let form: React.ReactNode;
-  if (step === 1) {
-    form = <StepOneForm mode="onboarding" values={stepOneValues(state)} />;
+  if (step === 0) {
+    form = <ResumeStep userId={userId} />;
+  } else if (step === 1) {
+    const { values, fromResume } = prefillStepOne(stepOneValues(state), suggestions);
+    form = <StepOneForm mode="onboarding" values={values} fromResume={fromResume} />;
   } else {
-    const values = stepTwoValues(state);
+    const { values, suggested } = prefillStepTwo(stepTwoValues(state), suggestions);
     form = (
       <StepTwoForm
         mode="onboarding"
         values={values}
         categories={await loadCategories()}
         seasons={seasonsFor(values.season)}
+        suggested={suggested}
       />
     );
   }

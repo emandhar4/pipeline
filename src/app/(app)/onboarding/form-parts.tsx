@@ -1,19 +1,41 @@
 import type { ReactNode } from 'react';
 
-/** Two-segment progress bar with "N of 2". The steps are a real sequence, so they are counted. */
-export function StepMarker({ step }: { step: 1 | 2 }) {
+const STEP_NAMES = ['Resume (optional)', 'Who you are', 'What you want'] as const;
+
+/** Three named steps with a bar each; the current one is marked. The resume step is optional. */
+export function StepMarker({ step }: { step: 0 | 1 | 2 }) {
   return (
-    <div className="flex items-center gap-3 text-sm text-muted">
-      <span className="flex gap-1.5" aria-hidden="true">
-        {[1, 2].map((n) => (
-          <span
-            key={n}
-            className={`h-1 w-8 rounded-full ${n <= step ? 'bg-accent' : 'bg-line'}`}
-          />
+    <nav aria-label="Setup progress">
+      <ol className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+        {STEP_NAMES.map((name, n) => (
+          <li
+            key={name}
+            aria-current={n === step ? 'step' : undefined}
+            className={`flex flex-col gap-2 ${n === step ? 'font-medium text-foreground' : 'text-muted'}`}
+          >
+            <span
+              aria-hidden="true"
+              className={`h-1 rounded-full ${n <= step ? 'bg-accent' : 'bg-line'}`}
+            />
+            <span>{name}</span>
+          </li>
         ))}
-      </span>
-      <span>{step} of 2</span>
-    </div>
+      </ol>
+    </nav>
+  );
+}
+
+export function badgeId(name: string) {
+  return `${name}-badge`;
+}
+
+/** A small tag beside a field label, e.g. "from resume". Fields list it in aria-describedby. */
+export function FieldBadge({ name, children }: { name: string; children?: ReactNode }) {
+  if (!children) return null;
+  return (
+    <span id={badgeId(name)} className="combo-badge">
+      {children}
+    </span>
   );
 }
 
@@ -44,6 +66,19 @@ export function FormMessage({ message }: { message?: string }) {
   );
 }
 
+/** A calm note at the top of a form that says what came from the user's resume. */
+export function PrefillNotice({ children }: { children: ReactNode }) {
+  return (
+    <p
+      role="status"
+      className="flex items-start gap-2 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-sm"
+    >
+      <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-accent" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
 /** One line beside the submit button after a failed submit; announced to screen readers. */
 export function SubmitSummary({ count }: { count: number }) {
   if (count === 0) return null;
@@ -60,21 +95,30 @@ export function TextField({
   label,
   hint,
   error,
+  badge,
   ...input
 }: {
   name: string;
   label: string;
   hint?: string;
   error?: string;
+  badge?: string;
 } & React.InputHTMLAttributes<HTMLInputElement>) {
-  const describedBy = [hint ? `${name}-hint` : null, error ? errorId(name) : null]
+  const describedBy = [
+    badge ? badgeId(name) : null,
+    hint ? `${name}-hint` : null,
+    error ? errorId(name) : null,
+  ]
     .filter(Boolean)
     .join(' ');
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={name} className="text-sm font-medium">
-        {label}
-      </label>
+      <div className="flex items-baseline gap-2">
+        <label htmlFor={name} className="text-sm font-medium">
+          {label}
+        </label>
+        <FieldBadge name={name}>{badge}</FieldBadge>
+      </div>
       <input
         id={name}
         name={name}

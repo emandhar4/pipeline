@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useReducer, useRef } from 'react';
-import { FieldError, errorId } from './form-parts';
+import { FieldBadge, FieldError, badgeId, errorId } from './form-parts';
 
 export type ComboOption = { id: string; label: string; detail?: string };
 
@@ -182,7 +182,11 @@ export function Combobox({
     }
   }
 
-  const describedBy = [hint ? `${name}-hint` : null, error ? errorId(name) : null]
+  const describedBy = [
+    badge ? badgeId(name) : null,
+    hint ? `${name}-hint` : null,
+    error ? errorId(name) : null,
+  ]
     .filter(Boolean)
     .join(' ');
   const status =
@@ -198,7 +202,7 @@ export function Combobox({
         <label htmlFor={name} className="text-sm font-medium">
           {label}
         </label>
-        {badge ? <span className="combo-badge">{badge}</span> : null}
+        <FieldBadge name={name}>{badge}</FieldBadge>
       </div>
       <div className="relative">
         <input

@@ -2,6 +2,7 @@ import 'server-only';
 import { getCurrentUser } from '@/lib/auth';
 import { seasonOptions } from '@/lib/onboarding/options';
 import type { OnboardingState } from '@/lib/onboarding/profile';
+import { resumeSuggestionsSchema, type ResumeSuggestions } from '@/lib/resume/types';
 import { createClient } from '@/lib/supabase/server';
 import type { StepOneValues } from './step-one-form';
 import type { Category, StepTwoValues } from './step-two-form';
@@ -12,6 +13,27 @@ export async function loadCategories(): Promise<Category[]> {
   const { data, error } = await client.from('field_categories').select('slug, name').order('sort');
   if (error) throw new Error(`read field_categories failed: ${error.message}`);
   return data;
+}
+
+/**
+ * Suggestions from the user's newest uploaded resume, or null when there is none or the
+ * stored suggestions do not match the current shape. Reads through the user's RLS client.
+ */
+export async function latestResumeSuggestions(): Promise<ResumeSuggestions | null> {
+  await getCurrentUser();
+  const client = await createClient();
+  const { data, error } = await client
+    .from('resumes')
+    .select('suggestions')
+    .eq('kind', 'uploaded')
+    .not('suggestions', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`read resumes failed: ${error.message}`);
+  if (!data) return null;
+  const parsed = resumeSuggestionsSchema.safeParse(data.suggestions);
+  return parsed.success ? parsed.data : null;
 }
 
 export function stepOneValues({ profile }: OnboardingState): StepOneValues {

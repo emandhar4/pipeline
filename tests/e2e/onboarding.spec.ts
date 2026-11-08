@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { seasonOptions } from '../../src/lib/onboarding/options';
-import { signIn, userPool, type TestUser } from './helpers';
+import { currentStep, signIn, userPool, type TestUser } from './helpers';
 
 // Two users for the whole file, to stay clear of the auth rate limit:
 // A finishes onboarding and then edits the profile; B stops after step 1.
@@ -50,13 +50,15 @@ function chip(page: Page, name: string) {
   return page.getByRole('button', { name: new RegExp(`^${name}`) });
 }
 
-test('new user is sent to onboarding and finishes in two steps', async ({ page }) => {
+test('new user is sent to onboarding and finishes after skipping the resume', async ({ page }) => {
   await signIn(page, userA.email);
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByText('1 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('Resume (optional)');
+  await page.getByRole('link', { name: 'Skip for now' }).click();
+  await expect(currentStep(page)).toHaveText('Who you are');
 
   await fillStep1(page);
-  await expect(page.getByText('2 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('What you want');
 
   await chip(page, 'Data Analysis').click();
   await expect(chip(page, 'Data Analysis')).toHaveAccessibleName(/primary/);
@@ -86,15 +88,16 @@ test('resume at step 2', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page, userB.email);
   await expect(page).toHaveURL(/\/onboarding$/);
+  await page.getByRole('link', { name: 'Skip for now' }).click();
   await fillStep1(page);
-  await expect(page.getByText('2 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('What you want');
 
   await page.goto('/dashboard');
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByText('2 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('What you want');
 
   await page.goto('/onboarding?step=1');
-  await expect(page.getByText('1 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('Who you are');
   // The picked school is stored under its database name; the free-text major as typed.
   await expect(page.getByRole('combobox', { name: 'School', exact: true })).toHaveValue(
     'Georgia Institute of Technology-Main Campus',
@@ -115,7 +118,7 @@ test('resume at step 2', async ({ page }) => {
 test('in person with no places shows the error', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page, userB.email, '/onboarding?step=1');
-  await expect(page.getByText('1 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('Who you are');
   // Clear the saved area so nothing is picked.
   await page.getByRole('button', { name: 'Southeast', exact: true }).click();
   await expect(page.getByText('None yet')).toBeVisible();
@@ -128,17 +131,17 @@ test('in person with no places shows the error', async ({ page }) => {
   await expect(error).toBeFocused();
   await expect(error).toBeInViewport();
   await expect(page.getByText('1 answer needs attention above.')).toBeVisible();
-  await expect(page.getByText('1 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('Who you are');
 
   await workStyle(page).getByLabel('Remote only').check();
   await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByText('2 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('What you want');
 });
 
 test('step 2 requires a primary field', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page, userB.email, '/onboarding');
-  await expect(page.getByText('2 of 2')).toBeVisible();
+  await expect(currentStep(page)).toHaveText('What you want');
 
   // The industry lists stop at 20: Add disables and a note says why.
   const prefer = page.getByLabel('Prefer', { exact: true });

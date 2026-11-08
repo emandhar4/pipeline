@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { startTransition, useActionState, useRef, useState } from 'react';
 import type { PayPeriod } from '@/lib/onboarding/options';
 import { saveStepTwo, type FormMode, type FormState } from './actions';
-import { FieldError, FormMessage, SubmitSummary, errorId } from './form-parts';
+import { FieldError, FormMessage, PrefillNotice, SubmitSummary, errorId } from './form-parts';
 import { useFocusOnError } from './use-focus-on-error';
 
 export type Category = { slug: string; name: string };
@@ -71,6 +71,18 @@ function fieldsOf(chips: Chip[]): string {
   );
 }
 
+/** "Supply Chain (primary), Data Analysis (secondary)", primary first, known categories only. */
+function suggestedText(suggested: string[], values: StepTwoValues, categories: Category[]): string {
+  const rank = { primary: 0, secondary: 1 } as const;
+  return values.fields
+    .filter((f) => f.category_slug && suggested.includes(f.category_slug))
+    .map((f) => ({ name: categories.find((c) => c.slug === f.category_slug)?.name, weight: f.weight }))
+    .filter((f): f is { name: string; weight: Weight } => !!f.name)
+    .sort((a, b) => rank[a.weight] - rank[b.weight])
+    .map((f) => `${f.name} (${f.weight})`)
+    .join(', ');
+}
+
 function Dot({ state }: { state: ChipState }) {
   return <span className="chip-dot" data-state={state} aria-hidden="true" />;
 }
@@ -80,11 +92,14 @@ export function StepTwoForm({
   values,
   categories,
   seasons,
+  suggested = [],
 }: {
   mode: FormMode;
   values: StepTwoValues;
   categories: Category[];
   seasons: string[];
+  /** Category slugs switched on from the user's resume. */
+  suggested?: string[];
 }) {
   const [state, formAction, pending] = useActionState(saveStepTwo.bind(null, mode), {} as FormState);
   const [chips, setChips] = useState(() => initialChips(categories, values.fields));
@@ -180,10 +195,16 @@ export function StepTwoForm({
   }
 
   const fieldsJson = fieldsOf(chips);
+  const suggestion = suggested.length > 0 ? suggestedText(suggested, values, categories) : '';
 
   return (
     <form ref={formRef} onSubmit={onSubmit} noValidate className="flex flex-col gap-10">
       <FormMessage message={state.message} />
+      {suggestion ? (
+        <PrefillNotice>
+          Suggested from your resume: {suggestion}. Change anything that&apos;s off.
+        </PrefillNotice>
+      ) : null}
       <input type="hidden" name="fields" value={fieldsJson} />
       <input type="hidden" name="industries" value={JSON.stringify(industries)} />
 
