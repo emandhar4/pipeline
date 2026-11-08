@@ -45,13 +45,14 @@ create function public.search_schools(q text, lim int default 8)
 returns setof public.schools
 language sql stable security invoker set search_path = ''
 as $$
-  with p as (select left(lower(trim(coalesce(q, ''))), 100) as t)
+  with p as (select left(lower(regexp_replace(coalesce(q, ''), '^\s+|\s+$', '', 'g')), 100) as t)
   select s.*
   from public.schools s, p
   where p.t <> ''
     and s.search_text ilike all (array(
       select '%' || replace(replace(replace(w, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       from unnest(regexp_split_to_array(p.t, '\s+')) as w
+      where w <> ''
     ))
   order by
     (not starts_with(lower(s.name), p.t)),
@@ -64,17 +65,19 @@ create function public.search_majors(q text, lim int default 8)
 returns setof public.majors
 language sql stable security invoker set search_path = ''
 as $$
-  with p as (select left(lower(trim(coalesce(q, ''))), 100) as t)
+  with p as (select left(lower(regexp_replace(coalesce(q, ''), '^\s+|\s+$', '', 'g')), 100) as t)
   select m.*
   from public.majors m, p
   where p.t <> ''
     and lower(m.title) ilike all (array(
       select '%' || replace(replace(replace(w, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       from unnest(regexp_split_to_array(p.t, '\s+')) as w
+      where w <> ''
     ))
   order by
     (not starts_with(lower(m.title), p.t)),
     extensions.word_similarity(p.t, lower(m.title)) desc,
+    length(m.title),
     m.title
   limit least(greatest(coalesce(lim, 8), 1), 20)
 $$;

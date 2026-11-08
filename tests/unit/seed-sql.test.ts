@@ -30,6 +30,14 @@ describe('toMajorRows', () => {
     ]);
     expect(out).toEqual([]);
   });
+  it('keeps Moved from rows, drops Reserved, collapses whitespace', () => {
+    const out = toMajorRows([
+      row({ CIPCode: '="43.0106"', Action: 'Moved from 43.0102', CIPTitle: 'Forensic Science.' }),
+      row({ CIPCode: '="01.0480"', CIPTitle: 'Reserved.' }),
+      row({ CIPCode: '="54.0102"', CIPTitle: 'American  History (United States).' }),
+    ]);
+    expect(out.map((r) => r.title)).toEqual(['Forensic Science', 'American History (United States)']);
+  });
   it('strips ", General" and dedupes on lowercased title', () => {
     const out = toMajorRows([
       row({ CIPFamily: '="45"', CIPCode: '="45.0601"', CIPTitle: 'Economics, General.' }),

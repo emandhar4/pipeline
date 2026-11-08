@@ -31,11 +31,12 @@ async function fetchPage(page: number): Promise<{ results: ScorecardResult[]; to
         return { results: json.results, total: json.metadata.total };
       }
       if (res.status !== 429 && res.status < 500) throw Object.assign(new Error(`HTTP ${res.status}`), { fatal: true });
-      console.error(`page ${page}: HTTP ${res.status}, retry ${attempt + 1}/5`);
+      if (attempt < 5) console.error(`page ${page}: HTTP ${res.status}, retry ${attempt + 1}/5`);
     } catch (e) {
       if ((e as { fatal?: boolean }).fatal) throw e;
-      console.error(`page ${page}: ${(e as Error).message}, retry ${attempt + 1}/5`);
+      if (attempt < 5) console.error(`page ${page}: ${(e as Error).message}, retry ${attempt + 1}/5`);
     }
+    if (attempt === 5) break;
     await sleep(2000 * 2 ** attempt);
   }
   throw new Error(`page ${page} failed after 5 retries`);

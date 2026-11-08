@@ -47,17 +47,18 @@ export function toMajorRows(
   const out: { cip_code: string; title: string; family: string }[] = [];
   for (const r of csv) {
     const action = (r.Action ?? '').trim();
-    if (action.startsWith('Deleted') || action.startsWith('Moved')) continue;
+    if (action.startsWith('Deleted') || action.startsWith('Moved to')) continue;
     const code = unwrap(r.CIPCode);
     if (!/^\d{2}\.\d{4}$/.test(code)) continue;
     const family = unwrap(r.CIPFamily) || code.slice(0, 2);
     if (EXCLUDED_FAMILIES.has(family) || code.endsWith('99')) continue;
     const title = (r.CIPTitle ?? '')
       .trim()
+      .replace(/\s+/g, ' ')
       .replace(/\.$/, '')
       .replace(/, General$/, '')
       .trim();
-    if (!title) continue;
+    if (!title || title === 'Reserved') continue;
     const key = title.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

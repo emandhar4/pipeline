@@ -41,7 +41,7 @@ describe('search_schools', () => {
     expect(names(data)[0]).toContain('Ohio State University');
   });
 
-  for (const q of ['%', '_', '  ', 'x'.repeat(500)]) {
+  for (const q of ['%', '_', '  ', '\t\n', 'x'.repeat(500)]) {
     it(`returns [] without error for ${JSON.stringify(q.length > 10 ? q.slice(0, 5) + '...' : q)}`, async () => {
       const { data, error } = await user.client.rpc('search_schools', { q });
       expect(error).toBeNull();
