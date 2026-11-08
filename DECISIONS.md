@@ -142,3 +142,7 @@ Phase 2 uses real data only: no fictional seed rows in shared tables. The dashbo
   - `safeNext` length cap; truncate the logged `error_description`.
   - `db:types` truncates the file on CLI failure.
   - Repo sits in an iCloud-synced folder, which caused duplicate `.next` files.
+
+## Onboarding step 2 save is not transactional (2026-11-08)
+
+`saveStep2` replaces `profile_fields` and `profile_industries` by deleting the user's rows and inserting the new set, then updates the `profiles` pay/season columns. These are separate requests, not one transaction. If a later request fails, the user may be left with a cleared or partial set until they resubmit; the error is thrown, not swallowed, so the form shows it. Acceptable for a single user editing their own profile. Revisit with an RPC if that changes.
