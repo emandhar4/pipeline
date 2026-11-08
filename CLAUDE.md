@@ -35,6 +35,9 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgr
 - Plans: `docs/superpowers/plans/`
 - Decisions log: `DECISIONS.md`
 - Third-party attributions: `THIRD_PARTY_NOTICES.md`
+- Onboarding: `src/lib/onboarding/` (pure `schema.ts`/`options.ts`, server-only `profile.ts`) and `src/app/(app)/onboarding/`, `src/app/(app)/profile/`
+- Dashboard: pure helpers in `src/lib/dashboard/` (`today.ts`, `health.ts`), server-only `queries.ts`, panels in `src/app/(app)/dashboard/`
+- Test-user cleanup: `npx tsx scripts/cleanup-test-users.ts [--dry-run]` (only `@example.test`)
 
 ## Working rules
 
