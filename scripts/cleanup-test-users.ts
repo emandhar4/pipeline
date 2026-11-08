@@ -55,6 +55,17 @@ async function main(): Promise<void> {
   let failed = 0;
   for (const u of users) {
     assertAllTest([u.email], 'auth users');
+    // Remove this test user's resume objects before the user itself.
+    const bucket = admin.storage.from('resumes');
+    let storageFailed = false;
+    for (;;) {
+      const listed = await bucket.list(u.id, { limit: 100 });
+      if (listed.error) { storageFailed = true; break; }
+      if (listed.data.length === 0) break;
+      const removed = await bucket.remove(listed.data.map((o) => `${u.id}/${o.name}`));
+      if (removed.error) { storageFailed = true; break; }
+    }
+    if (storageFailed) { failed++; continue; }
     const { error } = await admin.auth.admin.deleteUser(u.id);
     if (error) failed++;
   }

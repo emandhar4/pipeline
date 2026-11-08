@@ -885,6 +885,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["resume_kind"] | null
           posting_id: string | null
           storage_path: string | null
+          suggestions: Json | null
           updated_at: string
           user_id: string
         }
@@ -896,6 +897,7 @@ export type Database = {
           kind?: Database["public"]["Enums"]["resume_kind"] | null
           posting_id?: string | null
           storage_path?: string | null
+          suggestions?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -907,6 +909,7 @@ export type Database = {
           kind?: Database["public"]["Enums"]["resume_kind"] | null
           posting_id?: string | null
           storage_path?: string | null
+          suggestions?: Json | null
           updated_at?: string
           user_id?: string
         }
