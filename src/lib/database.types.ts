@@ -376,6 +376,27 @@ export type Database = {
         }
         Relationships: []
       }
+      field_categories: {
+        Row: {
+          name: string
+          slug: string
+          sort: number
+          source: string
+        }
+        Insert: {
+          name: string
+          slug: string
+          sort: number
+          source?: string
+        }
+        Update: {
+          name?: string
+          slug?: string
+          sort?: number
+          source?: string
+        }
+        Relationships: []
+      }
       finder_run_items: {
         Row: {
           company_id: string | null
@@ -648,56 +669,64 @@ export type Database = {
       }
       profile_fields: {
         Row: {
-          category: string | null
+          category_slug: string | null
           created_at: string
           id: string
-          label: string | null
+          label: string
           updated_at: string
           user_id: string
-          weight: Database["public"]["Enums"]["field_weight"] | null
+          weight: Database["public"]["Enums"]["field_weight"]
         }
         Insert: {
-          category?: string | null
+          category_slug?: string | null
           created_at?: string
           id?: string
-          label?: string | null
+          label: string
           updated_at?: string
           user_id?: string
-          weight?: Database["public"]["Enums"]["field_weight"] | null
+          weight: Database["public"]["Enums"]["field_weight"]
         }
         Update: {
-          category?: string | null
+          category_slug?: string | null
           created_at?: string
           id?: string
-          label?: string | null
+          label?: string
           updated_at?: string
           user_id?: string
-          weight?: Database["public"]["Enums"]["field_weight"] | null
+          weight?: Database["public"]["Enums"]["field_weight"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profile_fields_category_slug_fkey"
+            columns: ["category_slug"]
+            isOneToOne: false
+            referencedRelation: "field_categories"
+            referencedColumns: ["slug"]
+          },
+        ]
       }
       profile_industries: {
         Row: {
           created_at: string
           id: string
-          industry: string | null
-          preference: Database["public"]["Enums"]["industry_pref"] | null
+          industry: string
+          preference: Database["public"]["Enums"]["industry_pref"]
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          industry?: string | null
-          preference?: Database["public"]["Enums"]["industry_pref"] | null
+          industry: string
+          preference: Database["public"]["Enums"]["industry_pref"]
           updated_at?: string
           user_id?: string
         }
         Update: {
           created_at?: string
           id?: string
-          industry?: string | null
-          preference?: Database["public"]["Enums"]["industry_pref"] | null
+          industry?: string
+          preference?: Database["public"]["Enums"]["industry_pref"]
           updated_at?: string
           user_id?: string
         }

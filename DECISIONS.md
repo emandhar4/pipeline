@@ -116,6 +116,14 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Why:** Free tier, single auth redirect target; preview auth is not a goal in Phase 1.
 - **Who decided:** Claude (Task 7)
 
+## Phase 2 decisions (2026-11-08)
+
+### Real data only
+Phase 2 uses real data only: no fictional seed rows in shared tables. The dashboard shows the user's own rows and empty states. This replaces the spec's "dashboard shell with fictional seed data" and resolves the Phase 1 open item about keeping demo rows out of real users' data.
+
+### Field category vocabulary
+`field_categories` is a global table (read-only for `authenticated`) seeded with the 21 categories listed on intern-list.com, retrieved 2026-11-08. `profile_fields.category_slug` references it; free-text `label` stays user-owned, unique per user case-insensitively. `profile_industries` is likewise unique per user case-insensitively, and `profiles` gains checks on `work_auth`, `pay_floor_cents` and `onboarding_step`.
+
 ## Open items carried from the Phase 1 final review (2026-11-08)
 
 - **Before invitees:** set up the Google OAuth provider (manual; owner deferred). Then verify with one invitee.

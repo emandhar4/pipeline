@@ -170,7 +170,7 @@ Entity list; exact columns are the builder's, except where stated in §3.
 ## 6. Phases (each demoed before the next)
 
 1. Repo setup (public GitHub repo), Next.js + Supabase wiring, data model + migrations + RLS, invite-only auth, `CLAUDE.md`, `DECISIONS.md`, deploy to Vercel. Then run Claude Code Setup recommendations.
-2. Onboarding steps 1–2, dashboard shell with fictional seed data; the first user then onboards themselves with real data on the hosted site.
+2. Onboarding steps 1–2, dashboard shell showing the user's real rows and honest empty states (real data only: no fictional seed rows in shared tables); the first user then onboards themselves with real data on the hosted site.
 3. Daily finder on GitHub Actions, internship + new-grad sources. First run's per-source numbers shown to the user **before** scheduling the cron.
 4. Scoring, bar engine, "New postings worth it" panel; AI queue + routines (or the stage 2 decision).
 5. Applications pipeline, aging rules, Today list, import (including the first user's existing tracker).
