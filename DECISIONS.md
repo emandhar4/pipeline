@@ -85,8 +85,8 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Who decided:** Claude's call
 
 ### Invite-only signup hook
-- **Decision:** `before_user_created` hook is `public.hook_require_invite` (invites table, case-insensitive match via lowercase-enforced emails). The migration and `supabase/config.toml` are committed. The hook was enabled on the hosted project on 2026-11-08 (via the dashboard, not `supabase config push`, which would also change unrelated remote auth/pooler/storage settings; do not run it). The Auth Admin API bypasses the hook, so the invite-reject test uses the public `signUp`. The git history was scrubbed of personal data before the first push.
-- **Why:** config push overwrites everything config.toml declares, not just the hook.
+- **Decision:** `before_user_created` hook is `public.hook_require_invite` (invites table, case-insensitive match via lowercase-enforced emails). The migration and `supabase/config.toml` are committed. The hook was enabled on the hosted project on 2026-11-08 (via `supabase config push`, after `config.toml` was aligned with the hosted settings so the diff held only the hook; always run `npx supabase config diff --agent no` first and push only when the diff is exactly what you intend). The Auth Admin API bypasses the hook, so the invite-reject test uses the public `signUp`. The git history was scrubbed of personal data before the first push.
+- **Why:** config push overwrites everything config.toml declares, so config.toml must mirror the hosted project except for intended changes.
 - **Pending (owner, manual):** Google OAuth provider setup, deferred by the owner. Until it is done, only the owner can sign in (magic link); invitees cannot.
 - **Pending:** `vercel git connect` needs a GitHub Login Connection on Vercel. Until then deploys are manual (`vercel --prod`).
 - **Who decided:** Claude's call, per controller ruling
