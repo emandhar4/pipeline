@@ -59,7 +59,7 @@ export async function getMatches(limit = 20): Promise<MatchRow[]> {
     .neq('bar_verdict', 'does_not_beat')
     .neq('postings.status', 'gone')
     .order('base_score', { ascending: false, nullsFirst: false })
-    .order('first_seen', { ascending: false, referencedTable: 'postings' })
+    .order('postings(first_seen)', { ascending: false })
     .order('id', { ascending: true })
     .limit(limit);
   if (error) throw new Error(`read matches failed: ${error.message}`);

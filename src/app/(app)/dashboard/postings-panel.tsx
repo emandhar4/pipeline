@@ -47,9 +47,11 @@ async function Matches() {
     <>
       {matches.length === 0 ? (
         <p className="panel-note">
-          {finder.lastFinishedAt === null
-            ? 'Your first search runs when the daily finder goes live.'
-            : 'No matching postings yet. The finder checks every morning.'}
+          {below > 0
+            ? 'None of your matching postings beat your offer yet.'
+            : finder.lastFinishedAt === null
+              ? 'Your first search runs when the daily finder goes live.'
+              : 'No matching postings yet. The finder checks every morning.'}
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-line">

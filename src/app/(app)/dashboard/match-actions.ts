@@ -22,7 +22,9 @@ export async function setMatchState(matchId: string, state: string): Promise<Mat
     .from('posting_matches')
     .update({ state: parsed.data.state })
     .eq('id', parsed.data.matchId)
-    .eq('user_id', id);
+    .eq('user_id', id)
+    // An applied match keeps its state; Save and Hide never overwrite it.
+    .neq('state', 'applied');
   if (error) return { ok: false };
   revalidatePath('/dashboard');
   return { ok: true };

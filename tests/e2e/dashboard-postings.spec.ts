@@ -10,11 +10,15 @@ const suffix = randomBytes(4).toString('hex');
 // Each Phase 4 user's field matches one token that only their own test titles contain.
 const RK = `rk${suffix}`;
 const BR = `br${suffix}`;
+const TD = `td${suffix}`;
+const AB = `ab${suffix}`;
 const postingIds: string[] = [];
 let complete: TestUser;
 let incomplete: TestUser;
 let ranked: TestUser;
 let barred: TestUser;
+let tied: TestUser;
+let allBelow: TestUser;
 
 const POSTING = {
   company_name: 'Test Co',
@@ -94,7 +98,9 @@ test.beforeAll(async () => {
   // Phase 4: two more users, each with their own set of dated test postings.
   ranked = await pool.newUser('e2e-ranked');
   barred = await pool.newUser('e2e-barred');
-  for (const [u, token] of [[ranked, RK], [barred, BR]] as const) {
+  tied = await pool.newUser('e2e-tied');
+  allBelow = await pool.newUser('e2e-allbelow');
+  for (const [u, token] of [[ranked, RK], [barred, BR], [tied, TD], [allBelow, AB]] as const) {
     await markOnboarded(u.id);
     const pr = await admin
       .from('profiles')
@@ -138,6 +144,12 @@ test.beforeAll(async () => {
       dated('rk-c', `Gamma ${RK}`, 60),
       // Same field and brand as the bar role; only pay differs.
       dated('br-hi', `High ${BR}`, 1, { pay_min_cents: 9_000_000, pay_max_cents: 10_000_000, pay_period: 'year' }),
+      // Equal scores (all within 3 days): newest posting must come first.
+      dated('td-0', `T0 ${TD}`, 0),
+      dated('td-1', `T1 ${TD}`, 1),
+      dated('td-2', `T2 ${TD}`, 2),
+      dated('td-3', `T3 ${TD}`, 3),
+      dated('ab-1', `Only ${AB}`, 1),
       dated('br-lo', `Low ${BR}`, 1, { pay_min_cents: 4_000_000, pay_max_cents: 5_000_000, pay_period: 'year' }),
     ])
     .select('id');
@@ -154,7 +166,17 @@ test.beforeAll(async () => {
   });
   if (bar.error) throw new Error(`bar insert failed: ${bar.error.message}`);
 
-  for (const u of [ranked, barred]) {
+  const hi = await admin.from('bars').insert({
+    user_id: allBelow.id,
+    company: 'Test Bar Co',
+    role: `Engineer ${AB}`,
+    pay_cents: 20000,
+    pay_period: 'hour',
+    role_field_slugs: [],
+  });
+  if (hi.error) throw new Error(`bar insert failed: ${hi.error.message}`);
+
+  for (const u of [ranked, barred, tied, allBelow]) {
     const r = await admin.rpc('refresh_matches', { p_user: u.id });
     if (r.error) throw new Error(`refresh_matches failed: ${r.error.message}`);
   }
@@ -247,4 +269,21 @@ test('Hide removes the card and it stays gone after a reload', async ({ page }) 
   await page.reload();
   await expect(cardFor(page, `Alpha ${RK}`)).toBeVisible();
   await expect(cardFor(page, `Gamma ${RK}`)).toHaveCount(0);
+});
+
+test('equal scores list the newest posting first', async ({ page }) => {
+  await signIn(page, tied.email);
+  const panel = page.getByRole('region', { name: 'New postings worth it' });
+  const items = panel.locator('li').filter({ hasText: TD });
+  await expect(items).toHaveCount(4);
+  const order = (await items.allTextContents()).map((t) => /^(T\d)/.exec(t)?.[1]);
+  expect(order).toEqual(['T0', 'T1', 'T2', 'T3']);
+});
+
+test('when every match is below the bar the panel says so', async ({ page }) => {
+  await signIn(page, allBelow.email);
+  const panel = page.getByRole('region', { name: 'New postings worth it' });
+  await expect(panel.getByText('None of your matching postings beat your offer yet.')).toBeVisible();
+  await expect(panel.getByText("1 more matching posting doesn't beat your offer.")).toBeVisible();
+  await expect(panel.getByText('No matching postings yet')).toHaveCount(0);
 });
