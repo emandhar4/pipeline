@@ -188,6 +188,22 @@ export async function runFinder(deps: RunDeps, opts: RunOptions): Promise<RunSum
     const refreshMs = Date.now() - refreshStart
     log(`Matches refreshed for ${users.length - errors} of ${users.length} users${errors ? ` (${errors} errors)` : ''} in ${refreshMs} ms (slowest user ${slowestMs} ms).`)
 
+    // The AI second opinion: only users with ai_mode 'queue' (set by scripts/set-ai-mode.ts).
+    const aiUsers = await store.aiQueueUserIds().catch(() => null)
+    if (!aiUsers) log('AI queue: could not read which users want AI jobs; none queued.')
+    else if (aiUsers.length) {
+      let queued = 0
+      let aiErrors = 0
+      for (const id of aiUsers) {
+        try {
+          queued += await store.enqueueScoreFit(id)
+        } catch {
+          aiErrors++ // the error may name the user; log the count only
+        }
+      }
+      log(`AI queue: ${queued} score_fit jobs queued for ${aiUsers.length - aiErrors} of ${aiUsers.length} users${aiErrors ? ` (${aiErrors} errors)` : ''}.`)
+    }
+
     await store.prune()
     log('Pruned old data.')
     return { runId: run!.id, totals, scopes }

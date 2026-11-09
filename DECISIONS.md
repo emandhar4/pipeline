@@ -92,7 +92,7 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Who decided:** Claude's call, per controller ruling
 
 ### Auth sessions under Cache Components
-- **Decision:** Keep `cacheComponents` and `partialPrefetching` on. Session reads sit behind `<Suspense>`; `getCurrentUser()` (`src/lib/auth.ts`) calls `connection()` before `getClaims()` because JWT verification compares expiry to the clock, which Cache Components flags during runtime prefetch. The proxy (`src/proxy.ts`) refreshes the session with `getClaims()` and is default-deny: everything except `/login` and `/auth/*` redirects signed-out users to `/login?next=<path>`. The `(app)` layout re-verifies with `getClaims()` (never `getSession()`).
+- **Decision:** Keep `cacheComponents` and `partialPrefetching` on. Session reads sit behind `<Suspense>`; `getCurrentUser()` (`src/lib/auth.ts`) calls `connection()` before `getClaims()` because JWT verification compares expiry to the clock, which Cache Components flags during runtime prefetch. The proxy (`src/proxy.ts`) refreshes the session with `getClaims()` and is default-deny: everything except `/login`, `/auth/*` and the token-protected `/api/ai-jobs/*` worker routes (Phase 4) redirects signed-out users to `/login?next=<path>`. The `(app)` layout re-verifies with `getClaims()` (never `getSession()`).
 - **Why:** Follows the Next 16 "Authentication with Cache Components" guide and the Supabase SSR example without disabling caching; default-deny means new routes are protected automatically.
 - **Who decided:** Claude (Task 5)
 
@@ -207,6 +207,16 @@ Watchlist seed: MIT-licensed `Gsync/jobsync` company directories (~5,400 boards)
 
 - Remote matching is US-only: an `either`/`remote_only` user with non-US `work_countries` misses e.g. "Remote - UK"; fixing it needs a migration.
 - A permanently bot-blocked (403) slug host keeps a company `unknown` forever (retried each time it reaches the front of the queue), so it never shows "add a careers link". Giving up after N tries needs a counter column (a migration).
+
+## Phase 4: AI queue, stage 1 (2026-11-09)
+
+- **Who gets jobs.** Only users with `profiles.ai_mode = 'queue'`, set by `npx tsx scripts/set-ai-mode.ts <email> queue|off` (service role; `@example.test` emails need `--test`; prints `ok` only). Users cannot change the column.
+- **Enqueue** (`enqueueScoreFit` in `src/finder/ai-queue.ts`, called by the finder after every user's `refresh_matches`): the user's top 15 by `base_score` among passing, non-hidden, non-gone matches with no `ai_score` and no `score_fit` job yet (any status, so a done or failed posting is never re-queued), and never more than 15 queued or claimed jobs per user. The finder logs counts only.
+- **Worker routes are the one exception to "every route handler calls `getCurrentUser()`".** `POST /api/ai-jobs/claim` and `POST /api/ai-jobs/complete` are called by the owner's Claude cloud routine, not a user. Their auth is `Authorization: Bearer $AI_WORKER_TOKEN` (at least 32 characters, compared with `timingSafeEqual`). With the env var unset (or too short) both routes answer 404. The proxy lets `/api/ai-jobs/*` through without a session (`src/lib/public-paths.ts`). Errors are JSON codes only (`unauthorized`, `bad_request`, `not_found`, `not_claimed`, `server_error`).
+- **Claim** returns up to 10 jobs with the posting (title, company, locations, apply link, level, terms, pay) and the user's career stage, season and field labels/weights. Never a name, email, school or resume. Claims older than 2 hours can be claimed again. `claim_ai_jobs` can claim more rows than its limit (Postgres may re-run its `id in (select … limit … for update skip locked)` subquery), so `claimJobs` keeps the first `limit` and puts the rest straight back to `queued`; a migration that claims through a materialized CTE would fix it at the source.
+- **Complete** takes `{id, score 1–10 (integer), reason ≤ 200}` or `{id, error ≤ 500}`. A score sets the job `done` and writes `posting_matches.ai_score` and `reasons.ai_reason` (other reason keys kept; `refresh_matches` preserves both). An error sets it `failed`. Unknown id is 404; a job that is not `claimed` is 409. A claimed job whose posting is gone is marked `failed` at claim time.
+- **`AI_WORKER_TOKEN`** lives only in `src/lib/env.server.ts` (server-only), Vercel env and the routine. `scripts/check-bundle-secrets.mjs` fails on its name or value in the client bundle.
+- **Stage 2** (an API-backed provider) plugs in at the `// LLM-UPGRADE:` note in `src/lib/ai/types.ts`, reusing `ScoreFitJob` and `completeSchema`.
 
 ## Phase 2b: onboarding UX (decided and built 2026-11-08)
 
