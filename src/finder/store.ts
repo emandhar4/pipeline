@@ -133,10 +133,12 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
   }
 
   /**
-   * Inactive rows never create anything: an existing live source row goes gone, and its posting
-   * with it when no live source is left. Returns how many postings went gone.
+   * Inactive rows never create anything: an existing live source row of the same scope goes gone,
+   * and its posting with it when no live source is left. Returns how many postings went gone.
+   * Keyed by scope, not just source: one Simplify id can be live in simplify:intern and inactive in
+   * simplify:newgrad (both source 'simplify'), and the other list's flag must not end it.
    */
-  async function markInactive(source: string, externalIds: string[], goneAt: string): Promise<number> {
+  async function markInactive(r: ScopeResult, externalIds: string[], goneAt: string): Promise<number> {
     const affected = new Set<string>()
     let gone = 0
     for (const ext of chunks(externalIds, KEY_BATCH)) {
@@ -144,7 +146,8 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
         await client
           .from('posting_sources')
           .select('id, posting_id')
-          .eq('source', source)
+          .eq('source', r.source)
+          .eq('scope', r.scope)
           .in('external_id', ext)
           .is('gone_at', null),
         'read inactive sources',
@@ -211,7 +214,7 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
     // Inactive ids that are also live in this scope are not gone.
     const liveIds = new Set(bySource.keys())
     const goneIds = [...new Set(inactive.map((p) => p.externalId))].filter((id) => !liveIds.has(id))
-    const gone = goneIds.length ? await markInactive(r.source, goneIds, lastSeen) : 0
+    const gone = goneIds.length ? await markInactive(r, goneIds, lastSeen) : 0
 
     return { found: bySource.size, new: inserted, gone }
   }

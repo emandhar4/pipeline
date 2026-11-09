@@ -136,6 +136,19 @@ describe('finder store', () => {
     expect(after.posting!.status).toBe('gone')
   })
 
+  it('an inactive row in another scope of the same source leaves a live row alone', async () => {
+    const live = posting({ externalId: `cross-scope-${suffix}`, applyUrl: `https://boards.greenhouse.io/${board}/jobs/7101` })
+    await store.savePostings(run, scope('test:simplify-intern', [live]), false)
+    expect(await store.savePostings(run, scope('test:simplify-newgrad', [{ ...live, active: false }]), false)).toEqual({
+      found: 0,
+      new: 0,
+      gone: 0,
+    })
+    const after = await sourcesFor(`test:greenhouse:${board}:7101`)
+    expect(after.sources).toEqual([{ scope: 'test:simplify-intern', source: 'test', external_id: live.externalId, gone_at: null }])
+    expect(after.posting!.status).toBe('new')
+  })
+
   it('records run items, a partial scope as skipped', async () => {
     const r: ScopeResult = { ...scope('test:partial', []), fetched: 1000, complete: false }
     await store.recordItem(run.id, r, { found: 3, new: 1, gone: 0 })
