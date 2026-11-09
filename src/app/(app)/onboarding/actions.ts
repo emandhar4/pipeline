@@ -5,7 +5,7 @@ import type { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { resolveStepOneLookups } from '@/lib/onboarding/lookups';
 import { WORK_STYLES } from '@/lib/onboarding/options';
-import { saveStep1, saveStep2 } from '@/lib/onboarding/profile';
+import { refreshMyMatches, saveStep1, saveStep2 } from '@/lib/onboarding/profile';
 import { createClient } from '@/lib/supabase/server';
 import { loadCategories } from './data';
 import { step1Schema, step2Schema } from '@/lib/onboarding/schema';
@@ -55,6 +55,15 @@ function json(formData: FormData, name: string): unknown {
     return JSON.parse(text(formData, name) || '[]');
   } catch {
     return null;
+  }
+}
+
+/** Refreshes the user's matches after a save. Never throws: the nightly run repairs a miss. */
+async function refreshMatchesQuietly(): Promise<void> {
+  try {
+    await refreshMyMatches();
+  } catch (e) {
+    console.error('[onboarding] refreshMyMatches failed', { message: (e as Error).message });
   }
 }
 
@@ -111,6 +120,7 @@ export async function saveStepOne(
     console.error('[onboarding] saveStep1 failed', { message: (e as Error).message });
     return { message: SAVE_FAILED };
   }
+  await refreshMatchesQuietly();
   redirect(modeOf(mode) === 'profile' ? '/profile?saved=1' : '/onboarding');
 }
 
@@ -159,5 +169,6 @@ export async function saveStepTwo(
     console.error('[onboarding] saveStep2 failed', { message: (e as Error).message });
     return { message: SAVE_FAILED };
   }
+  await refreshMatchesQuietly();
   redirect(modeOf(mode) === 'profile' ? '/profile?saved=1' : '/dashboard');
 }

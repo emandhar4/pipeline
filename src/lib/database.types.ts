@@ -1109,6 +1109,7 @@ export type Database = {
       finish_finder_run: { Args: { p_run: string }; Returns: Json }
       hook_require_invite: { Args: { event: Json }; Returns: Json }
       prune_finder_data: { Args: { p_key_prefix?: string }; Returns: Json }
+      refresh_matches: { Args: { p_user: string }; Returns: string }
       search_majors: {
         Args: { lim?: number; q: string }
         Returns: {
