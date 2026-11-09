@@ -1,0 +1,53 @@
+name: Finder
+
+# Manual only. The daily cron is added after the first run's numbers are reviewed.
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: 'Optional comma-separated scopes, e.g. simplify,greenhouse:stripe (empty = everything)'
+        required: false
+        type: string
+        default: ''
+      resolve_limit:
+        description: 'Max unknown companies to probe this run'
+        required: false
+        type: string
+        default: '150'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finder
+  cancel-in-progress: false
+
+jobs:
+  finder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      # Inputs go through env, never inline in the script.
+      INPUT_ONLY: ${{ inputs.only }}
+      INPUT_RESOLVE_LIMIT: ${{ inputs.resolve_limit }}
+      # The CLI accepts manual|schedule; this workflow only ever runs manually.
+      FINDER_TRIGGER: manual
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Run finder
+        run: |
+          set -euo pipefail
+          args=(--resolve-limit "${INPUT_RESOLVE_LIMIT:-150}" --trigger "$FINDER_TRIGGER")
+          if [ -n "${INPUT_ONLY// /}" ]; then
+            args+=(--only "$INPUT_ONLY")
+          fi
+          npx tsx scripts/finder.ts "${args[@]}"
