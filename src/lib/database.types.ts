@@ -1108,6 +1108,7 @@ export type Database = {
       count_users_without_profile: { Args: never; Returns: number }
       finish_finder_run: { Args: { p_run: string }; Returns: Json }
       hook_require_invite: { Args: { event: Json }; Returns: Json }
+      normalize_company: { Args: { p_name: string }; Returns: string }
       prune_finder_data: { Args: { p_key_prefix?: string }; Returns: Json }
       refresh_matches: { Args: { p_user: string }; Returns: string }
       search_majors: {
@@ -1143,6 +1144,16 @@ export type Database = {
         }
       }
       us_state_from_location: { Args: { t: string }; Returns: string }
+      watch_company: {
+        Args: {
+          p_ats: string
+          p_careers_url: string
+          p_meta: Json
+          p_name: string
+          p_token: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       ai_job_kind:
