@@ -57,6 +57,7 @@ async function ProfileForms({ searchParams }: Pick<PageProps<'/profile'>, 'searc
     .select('created_at, companies(id, name, ats, coverage, coverage_reason)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
+  if (watched.error) console.error('[profile] read watched companies failed', { message: watched.error.message });
   const companies: WatchedCompany[] = (watched.data ?? []).flatMap((r) =>
     r.companies ? [r.companies as WatchedCompany] : [],
   );
@@ -107,7 +108,7 @@ async function ProfileForms({ searchParams }: Pick<PageProps<'/profile'>, 'searc
         />
       </section>
 
-      <CompaniesSection companies={companies} />
+      <CompaniesSection companies={companies} loadFailed={!!watched.error} />
     </>
   );
 }

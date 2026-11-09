@@ -7,7 +7,12 @@ import { parseCareersUrl } from '@/lib/companies/careers-url';
 import { createClient } from '@/lib/supabase/server';
 import type { Json } from '@/lib/database.types';
 
-export type CompanyFormState = { errors?: { name?: string; careers_url?: string }; message?: string };
+export type CompanyFormState = {
+  errors?: { name?: string; careers_url?: string };
+  message?: string;
+  /** What the user submitted, so a failed attempt keeps their input. */
+  values?: { name: string; careers_url: string };
+};
 
 const BAD_LINK = "That link isn't a careers page Pipeline can read. Leave it blank and we'll search by name.";
 
@@ -18,6 +23,10 @@ const schema = z.object({
 
 export async function addCompany(_prev: CompanyFormState, formData: FormData): Promise<CompanyFormState> {
   await getCurrentUser();
+  const values = {
+    name: typeof formData.get('name') === 'string' ? (formData.get('name') as string) : '',
+    careers_url: typeof formData.get('careers_url') === 'string' ? (formData.get('careers_url') as string) : '',
+  };
   const parsed = schema.safeParse({
     name: formData.get('name') ?? '',
     careers_url: formData.get('careers_url') ?? '',
@@ -28,13 +37,13 @@ export async function addCompany(_prev: CompanyFormState, formData: FormData): P
       const k = i.path[0] === 'careers_url' ? 'careers_url' : 'name';
       errors[k] ??= i.message;
     }
-    return { errors };
+    return { errors, values };
   }
   const { name, careers_url } = parsed.data;
   let board: ReturnType<typeof parseCareersUrl> = null;
   if (careers_url) {
     board = parseCareersUrl(careers_url);
-    if (!board) return { errors: { careers_url: BAD_LINK } };
+    if (!board) return { errors: { careers_url: BAD_LINK }, values };
   }
 
   const supabase = await createClient();
@@ -47,10 +56,10 @@ export async function addCompany(_prev: CompanyFormState, formData: FormData): P
   });
   if (error) {
     if (error.message.includes('limit')) {
-      return { message: 'You can watch up to 100 companies. Remove one first.' };
+      return { message: 'You can watch up to 100 companies. Remove one first.', values };
     }
     console.error('[profile] watch_company failed', { message: error.message });
-    return { message: 'Could not add that company. Try again in a minute.' };
+    return { message: 'Could not add that company. Try again in a minute.', values };
   }
   revalidatePath('/profile');
   return {};

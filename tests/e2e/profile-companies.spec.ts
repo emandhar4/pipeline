@@ -52,6 +52,9 @@ test('add by name, reject a bad link, remove', async ({ page }) => {
     section.getByText("That link isn't a careers page Pipeline can read. Leave it blank and we'll search by name."),
   ).toBeVisible();
   await expect(section.getByRole('listitem').filter({ hasText: 'Test- Other Co' })).toHaveCount(0);
+  // The failed attempt keeps what was typed.
+  await expect(section.getByLabel('Company name')).toHaveValue('Test- Other Co');
+  await expect(section.getByLabel(/Careers page link/)).toHaveValue('javascript:x');
 
   await item.getByRole('button', { name: 'Remove Test- Example Co' }).click();
   await expect(section.getByText('Test- Example Co')).toHaveCount(0);

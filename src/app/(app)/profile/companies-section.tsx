@@ -13,7 +13,7 @@ export type WatchedCompany = {
   coverage_reason: string | null;
 };
 
-export function CompaniesSection({ companies }: { companies: WatchedCompany[] }) {
+export function CompaniesSection({ companies, loadFailed = false }: { companies: WatchedCompany[]; loadFailed?: boolean }) {
   const [state, action, pending] = useActionState<CompanyFormState, FormData>(addCompany, {});
   return (
     <section id="companies" aria-labelledby="companies-heading" className="mt-16 flex flex-col gap-6">
@@ -31,6 +31,7 @@ export function CompaniesSection({ companies }: { companies: WatchedCompany[] })
             name="name"
             required
             maxLength={120}
+            defaultValue={state.values?.name}
             autoComplete="off"
             className="field"
             aria-invalid={state.errors?.name ? true : undefined}
@@ -46,6 +47,7 @@ export function CompaniesSection({ companies }: { companies: WatchedCompany[] })
             id="company-url"
             name="careers_url"
             type="text"
+            defaultValue={state.values?.careers_url}
             inputMode="url"
             autoComplete="off"
             className="field"
@@ -63,7 +65,9 @@ export function CompaniesSection({ companies }: { companies: WatchedCompany[] })
           </button>
         </div>
       </form>
-      {companies.length > 0 ? (
+      {loadFailed ? (
+        <p role="alert" className="field-error">Could not load your companies. Reload the page to try again.</p>
+      ) : companies.length > 0 ? (
         <ul className="divide-y divide-line border-y border-line">
           {companies.map((c) => (
             <li key={c.id} className="flex items-center justify-between gap-3 py-3">
