@@ -75,3 +75,14 @@ const utcDate = new Intl.DateTimeFormat('en-US', {
 export function formatUtcDate(iso: string): string {
   return utcDate.format(new Date(iso));
 }
+
+/** Returns the URL only when it parses with an http: or https: protocol, else null. */
+export function safeHttpUrl(u: string | null): string | null {
+  if (u === null) return null;
+  try {
+    const { protocol } = new URL(u);
+    return protocol === 'http:' || protocol === 'https:' ? u : null;
+  } catch {
+    return null;
+  }
+}

@@ -22,7 +22,6 @@ export async function getTasks(): Promise<TaskRow[]> {
 
 export type MatchRow = {
   id: string;
-  score: number | null;
   confirm_pay: boolean;
   title: string;
   company_name: string;
@@ -42,7 +41,7 @@ export async function getMatches(limit = 20): Promise<MatchRow[]> {
   const { data, error } = await client
     .from('posting_matches')
     .select(
-      'id, base_score, ai_score, confirm_pay, postings!inner(title, company_name, apply_url, locations, remote, location_unknown, first_seen, status)',
+      'id, confirm_pay, postings!inner(title, company_name, apply_url, locations, remote, location_unknown, first_seen, status)',
     )
     .eq('user_id', id)
     .eq('passed_filter', true)
@@ -55,11 +54,9 @@ export async function getMatches(limit = 20): Promise<MatchRow[]> {
     .flatMap((m) => {
       const p = Array.isArray(m.postings) ? m.postings[0] : m.postings;
       if (!p) return [];
-      const score = m.ai_score ?? m.base_score;
       return [
         {
           id: m.id,
-          score: score === null ? null : Number(score),
           confirm_pay: m.confirm_pay,
           title: p.title,
           company_name: p.company_name,
@@ -72,7 +69,7 @@ export async function getMatches(limit = 20): Promise<MatchRow[]> {
         },
       ];
     })
-    .sort((a, b) => b.first_seen.localeCompare(a.first_seen))
+    .sort((a, b) => b.first_seen.localeCompare(a.first_seen) || a.id.localeCompare(b.id))
     .slice(0, limit);
 }
 

@@ -4,6 +4,7 @@ import {
   formatUtcDate,
   locationLabel,
   missingList,
+  safeHttpUrl,
   profileCompleteness,
 } from '@/lib/dashboard/postings';
 
@@ -115,5 +116,17 @@ describe('finderStale', () => {
 describe('formatUtcDate', () => {
   it('formats in UTC regardless of local zone', () => {
     expect(formatUtcDate('2026-11-08T23:30:00Z')).toBe('Nov 8, 2026');
+  });
+});
+
+describe('safeHttpUrl', () => {
+  it('allows http and https', () => {
+    expect(safeHttpUrl('https://example.test/a')).toBe('https://example.test/a');
+    expect(safeHttpUrl('http://example.test/a')).toBe('http://example.test/a');
+  });
+  it('rejects other schemes, malformed and null', () => {
+    expect(safeHttpUrl('javascript:alert(1)')).toBeNull();
+    expect(safeHttpUrl('not a url')).toBeNull();
+    expect(safeHttpUrl(null)).toBeNull();
   });
 });
