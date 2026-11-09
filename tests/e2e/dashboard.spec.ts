@@ -32,14 +32,14 @@ async function shots(page: Page, name: string) {
   }
 }
 
-test('empty dashboard shows honest empty states that name the profile fields', async ({ page }) => {
+test('empty dashboard shows honest empty states and a profile-gap prompt', async ({ page }) => {
   await signIn(page, user.email);
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await expect(
     page.getByText('Nothing due. New tasks appear here as you apply and hear back.'),
   ).toBeVisible();
-  await expect(page.getByText('Your fields: Data Analysis.')).toBeVisible();
+  await expect(page.getByText(/Finish your profile to see matching postings/)).toBeVisible();
   await expect(page.getByText('Applications you add will show up here.')).toBeVisible();
   await expect(page.getByText('Going stale')).toHaveCount(0);
   await shots(page, 'empty');
@@ -64,6 +64,6 @@ test('a 31-day-old application appears in the funnel and under Going stale', asy
   await expect(health.getByText('Example Corp')).toBeVisible();
   await expect(health.getByText('31 days quiet')).toBeVisible();
   await expect(page.getByText('Applications you add will show up here.')).toHaveCount(0);
-  await expect(page.getByText('Your fields: Data Analysis.')).toBeVisible();
+  await expect(page.getByText(/Finish your profile to see matching postings/)).toBeVisible();
   await shots(page, 'stale');
 });
