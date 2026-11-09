@@ -85,3 +85,56 @@ describe('store: Simplify inactive rows', () => {
     expect(db.posting_sources[0].gone_at).toBeNull()
   })
 })
+
+describe('store: a board that returns HTTP 404', () => {
+  const COMPANY = {
+    id: 'co-1',
+    name: 'Doctolib',
+    ats: 'greenhouse',
+    ats_token: 'doctolib',
+    ats_meta: { x: 1 },
+    coverage: 'covered',
+    coverage_reason: null,
+    resolved_at: '2026-11-01T00:00:00.000Z',
+  }
+
+  function board(status: ScopeResult['status'], reason?: string): ScopeResult {
+    return { scope: 'greenhouse:doctolib', source: 'greenhouse', companyId: 'co-1', status, reason, fetched: 0, complete: false, postings: [] }
+  }
+
+  it('resets the company to unknown so the resolver re-probes it, and records the item failed', async () => {
+    const db: Tables = { companies: [{ ...COMPANY }] }
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.recordItem('run-1', board('failed', 'HTTP 404'), { found: 0, new: 0, gone: 0 })
+
+    expect(db.companies[0]).toEqual({
+      ...COMPANY,
+      ats: 'unknown',
+      ats_token: null,
+      ats_meta: {},
+      coverage: 'unknown',
+      coverage_reason: null,
+      resolved_at: null,
+    })
+    expect(db.finder_run_items).toEqual([
+      expect.objectContaining({ scope: 'greenhouse:doctolib', company_id: 'co-1', status: 'failed', error: 'HTTP 404' }),
+    ])
+  })
+
+  it.each(['HTTP 403', 'HTTP 410', 'HTTP 503 after 3 retries', 'timeout', 'network error: ECONNRESET', 'unexpected response shape'])(
+    'leaves the company alone on %s',
+    async (reason) => {
+      const db: Tables = { companies: [{ ...COMPANY }] }
+      const store = createSupabaseStore(fakeSupabase(db))
+      await store.recordItem('run-1', board('failed', reason), { found: 0, new: 0, gone: 0 })
+      expect(db.companies[0]).toEqual(COMPANY)
+    },
+  )
+
+  it('leaves the company alone when an ok scope is recorded', async () => {
+    const db: Tables = { companies: [{ ...COMPANY }] }
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.recordItem('run-1', board('ok'), { found: 0, new: 0, gone: 0 })
+    expect(db.companies[0]).toEqual(COMPANY)
+  })
+})

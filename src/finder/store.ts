@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '../lib/database.types'
 import { dedupeKey } from './classify'
-import { keptPostings, runItemRow, stampFor, type SaveCounts } from './keep'
+import { boardNotFound, keptPostings, runItemRow, stampFor, type SaveCounts } from './keep'
 import { UNCHECKED, type ResolveResult } from './resolve'
 import type { AtsKind, BoardCompany, NormalizedPosting, ScopeResult } from './types'
 
@@ -18,6 +18,7 @@ export type Store = {
   saveResolution(id: string, r: ResolveResult): Promise<void>
   watchedCompanyIds(): Promise<Set<string>>
   savePostings(run: Run, r: ScopeResult, keepExperienced: boolean): Promise<SaveCounts>
+  /** Inserts the scope's run item; a board that got HTTP 404 also resets its company to unknown. */
   recordItem(runId: string, r: ScopeResult, counts: SaveCounts): Promise<void>
   finishRun(runId: string): Promise<Totals>
   userIdsToMatch(): Promise<string[]>
@@ -312,6 +313,24 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
         }),
         'record run item',
       )
+      if (boardNotFound(r)) {
+        // The run item stays failed 'HTTP 404'; the resolver re-probes the company by name or careers link.
+        must(
+          await client
+            .from('companies')
+            .update({
+              ats: 'unknown',
+              ats_token: null,
+              ats_meta: {},
+              coverage: 'unknown',
+              coverage_reason: null,
+              resolved_at: null,
+            })
+            .eq('id', r.companyId!)
+            .eq('ats', r.source as AtsKind),
+          'reset company',
+        )
+      }
     },
 
     async finishRun(runId) {

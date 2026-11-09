@@ -12,12 +12,14 @@ describe('finder store', () => {
   const suffix = randomBytes(4).toString('hex')
   const board = `teststore${suffix}`
   const runIds: string[] = []
+  const companyIds: string[] = []
   let run: Run
 
   afterAll(async () => {
     // posting_sources cascade from postings; run items from runs.
     await admin.from('postings').delete().like('dedupe_key', `test:%${suffix}%`)
     if (runIds.length) await admin.from('finder_runs').delete().in('id', runIds)
+    if (companyIds.length) await admin.from('companies').delete().in('id', companyIds)
   })
 
   function posting(over: Partial<NormalizedPosting>): NormalizedPosting {
@@ -155,6 +157,41 @@ describe('finder store', () => {
     const items = await admin.from('finder_run_items').select('scope, status, error, found, new').eq('run_id', run.id)
     expect(items.error).toBeNull()
     expect(items.data).toEqual([{ scope: 'test:partial', status: 'skipped', error: 'partial: stopped at 1000 rows', found: 3, new: 1 }])
+  })
+
+  it('a board that got HTTP 404 resets its company to unknown', async () => {
+    const co = await admin
+      .from('companies')
+      .insert({
+        name: `Test Gone Board ${suffix}`,
+        normalized_name: `test-gone-board-${suffix}`,
+        ats: 'greenhouse',
+        ats_token: `testgone${suffix}`,
+        ats_meta: { a: 1 },
+        coverage: 'covered',
+        resolved_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+    expect(co.error).toBeNull()
+    companyIds.push(co.data!.id)
+    const r: ScopeResult = {
+      ...scope(`greenhouse:testgone${suffix}`, []),
+      source: 'greenhouse',
+      companyId: co.data!.id,
+      status: 'failed',
+      reason: 'HTTP 404',
+      complete: false,
+    }
+    await store.recordItem(run.id, r, { found: 0, new: 0, gone: 0 })
+    const row = await admin
+      .from('companies')
+      .select('ats, ats_token, ats_meta, coverage, coverage_reason, resolved_at')
+      .eq('id', co.data!.id)
+      .single()
+    expect(row.data).toEqual({ ats: 'unknown', ats_token: null, ats_meta: {}, coverage: 'unknown', coverage_reason: null, resolved_at: null })
+    const item = await admin.from('finder_run_items').select('status, error').eq('run_id', run.id).eq('company_id', co.data!.id).single()
+    expect(item.data).toEqual({ status: 'failed', error: 'HTTP 404' })
   })
 
   it('failRun marks a running run failed', async () => {

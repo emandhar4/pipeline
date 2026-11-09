@@ -45,3 +45,11 @@ export function runItemRow(
   if (r.status === 'ok') return { ...base, status: 'ok', error: null }
   return { ...base, status: r.status, error: r.reason ?? null }
 }
+
+/**
+ * A board scope whose fetch got HTTP 404: the token is gone or moved. The store resets the company
+ * to unknown so the resolver re-probes it. Only 404; 403, 5xx, timeouts and the rest are transient.
+ */
+export function boardNotFound(r: ScopeResult): boolean {
+  return r.status === 'failed' && r.companyId !== null && r.source !== 'simplify' && r.reason === 'HTTP 404'
+}
