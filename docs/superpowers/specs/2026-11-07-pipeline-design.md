@@ -100,6 +100,7 @@ Step 0 is optional and Steps 1 and 2 are the fast path (~2 minutes); search star
 - **Score** (soft): field weight (primary ≫ secondary), keyword match against fields and experience bank, preferred-industry bonus, dream-company bonus, recency.
 - **Pay:** below the floor → drop; unknown → keep, flagged "confirm pay".
 - **Bar:** if the user has an offer, a posting is "worth it" only if it clearly beats it on function, pay and brand. How "clearly beats" is computed is left to the builder, but it must be explainable on the card in one line.
+- **Phase 4 decided:** the filter reasons, the 0-100 score table, "clearly beats" (better on at least one of function, pay, brand and worse on none) and the one-line card text are in `DECISIONS.md` "Phase 4: scoring, the bar and the AI queue".
 - Two-tier scoring: a cheap deterministic score on every posting, then AI fit scoring on only the top candidates per user (keeps AI cost bounded; idea borrowed from jobsync).
 
 ### 3.5 Applications pipeline
@@ -142,6 +143,7 @@ Step 0 is optional and Steps 1 and 2 are the fast path (~2 minutes); search star
 - **Data isolation:** every per-user table has Row Level Security keyed to `auth.uid()`. Global tables (companies, postings, sources, run reports) are readable by signed-in users and writable only by the service role.
 - **Secrets:** Supabase secret key lives in Vercel env and GitHub Actions secrets only. Firecrawl key in GitHub Actions secrets. No secret in the repo or the browser. `.env.local` is gitignored (already).
 - **AI layer:** one TypeScript interface (e.g. `scoreFit`, `tailorResume`, `draftOutreach`, `parseResume`) with two providers selected by config. Stage 1 `QueueProvider` inserts an `ai_jobs` row and the UI shows "pending" until a routine fills the result. Stage 2 `AnthropicProvider` calls the API directly, server-side, with model per task (Haiku vs. Sonnet).
+- **Phase 4 decided:** stage 1 uses two token-protected worker routes (`/api/ai-jobs/claim`, `/complete`) on Vercel, not direct Supabase access; Task 1's network result and the route design are in `DECISIONS.md` "Phase 4".
 - **Known risk to test before Phase 4 depends on it:** whether Claude cloud routines can reach Supabase. If they can, give them the narrowest credential that works (a dedicated Postgres role or a narrow API route limited to `ai_jobs` read/claim/complete). If not, move to stage 2 sooner (that's the user's call; ask then).
 
 ## 5. Data model (Phase 1)
