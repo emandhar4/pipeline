@@ -132,6 +132,38 @@ describe('store: a board that returns HTTP 404', () => {
     },
   )
 
+  it('does not reset a company whose token changed since the fetch', async () => {
+    const moved = { ...COMPANY, ats_token: 'doctolib-new' }
+    const db: Tables = { companies: [{ ...moved }] }
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.recordItem('run-1', board('failed', 'HTTP 404'), { found: 0, new: 0, gone: 0 })
+    expect(db.companies[0]).toEqual(moved)
+  })
+
+  it("retires the scope's live source rows; a posting with no other live source goes gone", async () => {
+    const db: Tables = { companies: [{ ...COMPANY }] }
+    const store = createSupabaseStore(fakeSupabase(db))
+    const ok = (postings: NormalizedPosting[]): ScopeResult => ({ ...board('ok'), fetched: postings.length, complete: true, postings })
+    const only = posting({ externalId: 'gh-1', applyUrl: 'https://boards.greenhouse.io/doctolib/jobs/1' })
+    const shared = posting({ externalId: 'gh-2', applyUrl: 'https://boards.greenhouse.io/doctolib/jobs/2' })
+    const other = posting({ externalId: 'gh-3', applyUrl: 'https://boards.greenhouse.io/elsewhere/jobs/3' })
+    await store.savePostings(RUN, ok([only, shared]), false)
+    await store.savePostings(RUN, simplify('intern', [{ ...shared, externalId: 's-2' }]), false)
+    await store.savePostings(RUN, { ...ok([other]), scope: 'greenhouse:elsewhere', companyId: 'co-2' }, false)
+
+    await store.recordItem('run-2', board('failed', 'HTTP 404'), { found: 0, new: 0, gone: 0 })
+
+    const src = (ext: string) => db.posting_sources.find((r) => r.external_id === ext)!
+    const post = (ext: string) => db.postings.find((r) => r.id === src(ext).posting_id)!
+    expect(src('gh-1').gone_at).not.toBeNull()
+    expect(src('gh-2').gone_at).not.toBeNull()
+    expect(post('gh-1').status).toBe('gone')
+    expect(post('gh-2').status).toBe('new') // still live through Simplify
+    expect(src('s-2').gone_at).toBeNull()
+    expect(src('gh-3').gone_at).toBeNull()
+    expect(post('gh-3').status).toBe('new')
+  })
+
   it('leaves the company alone when an ok scope is recorded', async () => {
     const db: Tables = { companies: [{ ...COMPANY }] }
     const store = createSupabaseStore(fakeSupabase(db))

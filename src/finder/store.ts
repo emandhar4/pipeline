@@ -18,7 +18,7 @@ export type Store = {
   saveResolution(id: string, r: ResolveResult): Promise<void>
   watchedCompanyIds(): Promise<Set<string>>
   savePostings(run: Run, r: ScopeResult, keepExperienced: boolean): Promise<SaveCounts>
-  /** Inserts the scope's run item; a board that got HTTP 404 also resets its company to unknown. */
+  /** Inserts the scope's run item; a board that got HTTP 404 also resets its company to unknown and retires the scope's live source rows. */
   recordItem(runId: string, r: ScopeResult, counts: SaveCounts): Promise<void>
   finishRun(runId: string): Promise<Totals>
   userIdsToMatch(): Promise<string[]>
@@ -146,38 +146,25 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
   }
 
   /**
-   * Inactive rows never create anything: an existing live source row of the same scope goes gone,
-   * and its posting with it when no live source is left. Returns how many postings went gone.
-   * Keyed by scope, not just source: one Simplify id can be live in simplify:intern and inactive in
-   * simplify:newgrad (both source 'simplify'), and the other list's flag must not end it.
+   * Sets gone_at on the given live source rows, then marks gone each of their postings left with
+   * no live source. Returns how many postings went gone.
    */
-  async function markInactive(r: ScopeResult, externalIds: string[], goneAt: string): Promise<number> {
+  async function retireSources(rows: { id: string; posting_id: string }[], goneAt: string): Promise<number> {
     const affected = new Set<string>()
-    let gone = 0
-    for (const ext of chunks(externalIds, KEY_BATCH)) {
-      const rows = must(
-        await client
-          .from('posting_sources')
-          .select('id, posting_id')
-          .eq('source', r.source)
-          .eq('scope', r.scope)
-          .in('external_id', ext)
-          .is('gone_at', null),
-        'read inactive sources',
-      )
-      if (!rows.length) continue
+    for (const batch of chunks(rows, KEY_BATCH)) {
       must(
         await client
           .from('posting_sources')
           .update({ gone_at: goneAt })
           .in(
             'id',
-            rows.map((x) => x.id),
+            batch.map((x) => x.id),
           ),
         'mark sources gone',
       )
-      rows.forEach((x) => affected.add(x.posting_id))
+      batch.forEach((x) => affected.add(x.posting_id))
     }
+    let gone = 0
     for (const ids of chunks([...affected], KEY_BATCH)) {
       const live = must(
         await client.from('posting_sources').select('posting_id').in('posting_id', ids).is('gone_at', null),
@@ -194,6 +181,57 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
       }
     }
     return gone
+  }
+
+  /**
+   * Inactive rows never create anything: an existing live source row of the same scope goes gone,
+   * and its posting with it when no live source is left. Returns how many postings went gone.
+   * Keyed by scope, not just source: one Simplify id can be live in simplify:intern and inactive in
+   * simplify:newgrad (both source 'simplify'), and the other list's flag must not end it.
+   */
+  async function markInactive(r: ScopeResult, externalIds: string[], goneAt: string): Promise<number> {
+    const rows: { id: string; posting_id: string }[] = []
+    for (const ext of chunks(externalIds, KEY_BATCH)) {
+      rows.push(
+        ...must(
+          await client
+            .from('posting_sources')
+            .select('id, posting_id')
+            .eq('source', r.source)
+            .eq('scope', r.scope)
+            .in('external_id', ext)
+            .is('gone_at', null),
+          'read inactive sources',
+        ),
+      )
+    }
+    return rows.length ? retireSources(rows, goneAt) : 0
+  }
+
+  /**
+   * A board scope that got HTTP 404 is never fetched again (its company goes back to the resolver),
+   * so finish_finder_run would never retire it: every live source row of the scope goes gone now,
+   * and postings left with no live source with them. A re-resolve to the same token revives them.
+   */
+  async function retireScope(r: ScopeResult, goneAt: string): Promise<void> {
+    const rows = await allPages('read scope sources', (from, to) =>
+      client
+        .from('posting_sources')
+        .select('id, posting_id')
+        .eq('source', r.source)
+        .eq('scope', r.scope)
+        .is('gone_at', null)
+        .order('id')
+        .range(from, to),
+    )
+    if (rows.length) await retireSources(rows, goneAt)
+  }
+
+  /** Runs `job` after every queued save, so posting/source writes never interleave. */
+  function serially<T>(job: () => Promise<T>): Promise<T> {
+    const next = saveTail.then(job)
+    saveTail = next.catch(() => {})
+    return next
   }
 
   async function savePostingsNow(run: Run, r: ScopeResult, keepExperienced: boolean): Promise<SaveCounts> {
@@ -318,9 +356,7 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
     },
 
     savePostings(run, r, keepExperienced) {
-      const next = saveTail.then(() => savePostingsNow(run, r, keepExperienced))
-      saveTail = next.catch(() => {})
-      return next
+      return serially(() => savePostingsNow(run, r, keepExperienced))
     },
 
     async recordItem(runId, r, counts) {
@@ -336,6 +372,7 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
       )
       if (boardNotFound(r)) {
         // The run item stays failed 'HTTP 404'; the resolver re-probes the company by name or careers link.
+        // Guarded by ats and token: a company already moved to another board is left alone.
         must(
           await client
             .from('companies')
@@ -348,9 +385,11 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
               resolved_at: null,
             })
             .eq('id', r.companyId!)
-            .eq('ats', r.source as AtsKind),
+            .eq('ats', r.source as AtsKind)
+            .eq('ats_token', r.scope.slice(r.source.length + 1)),
           'reset company',
         )
+        await serially(() => retireScope(r, new Date().toISOString()))
       }
     },
 
