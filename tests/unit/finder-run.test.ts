@@ -219,7 +219,10 @@ describe('src/app never imports src/finder', () => {
     for (const f of [...files('src/app'), ...files('src/lib')]) {
       const text = readFileSync(f, 'utf8')
       for (const m of text.matchAll(importRe)) {
-        if (/(^|[/@])finder(\/|$)/.test(m[1])) offenders.push(`${f}: ${m[1]}`)
+        if (!/(^|[/@])finder(\/|$)/.test(m[1])) continue
+        // Scoring may reuse the finder's pure classifiers (Phase 4 constraint); nothing else may.
+        if (f.startsWith('src/lib/scoring/') && /(^|[/@])finder\/classify\//.test(m[1])) continue
+        offenders.push(`${f}: ${m[1]}`)
       }
     }
     expect(offenders).toEqual([])
