@@ -26,6 +26,7 @@ function posting(over: Partial<NormalizedPosting>): NormalizedPosting {
     level: 'internship',
     fieldSlugs: ['software-engineering'],
     active: true,
+    sponsorship: null,
     ...over,
   }
 }
@@ -190,6 +191,16 @@ describe('store: a posting seen again by another source', () => {
     expect(db.postings).toHaveLength(1)
     expect(db.postings[0]).toMatchObject({ level: 'internship', field_slugs: ['software-engineering'], terms: ['Summer 2027'] })
     expect(db.posting_sources).toHaveLength(2)
+  })
+
+  it("keeps the stored sponsorship when a later sighting has null, and takes a new non-null one", async () => {
+    const db: Tables = {}
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.savePostings(RUN, simplify('intern', [posting({ externalId: 's-1', sponsorship: 'none' })]), false)
+    await store.savePostings(RUN, board([posting({ externalId: 'gh-1', sponsorship: null })]), true)
+    expect(db.postings[0].sponsorship).toBe('none')
+    await store.savePostings(RUN, simplify('intern', [posting({ externalId: 's-1', sponsorship: 'offers' })]), false)
+    expect(db.postings[0].sponsorship).toBe('offers')
   })
 
   it('unions fields and terms from both sources', async () => {

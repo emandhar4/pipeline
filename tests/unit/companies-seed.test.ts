@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCompanyRows } from '../../scripts/build-companies-seed';
+import { buildCompanyRows, buildIndustryRows } from '../../scripts/build-companies-seed';
 
 const none = { greenhouse: [], lever: [], ashby: [], sp500: [] };
 
@@ -49,5 +49,20 @@ describe('buildCompanyRows', () => {
     const rows = buildCompanyRows({ ...none, lever: [{ name: 'Eu Co', token: 'euco', host: 'eu' }, { name: 'Us Co', token: 'usco' }] });
     expect(rows[0].ats_meta).toEqual({ region: 'eu' });
     expect(rows[1].ats_meta).toEqual({});
+  });
+});
+
+describe('buildIndustryRows', () => {
+  it('formats sector / sub-industry, drops empty sectors and dedupes by name', () => {
+    const rows = buildIndustryRows([
+      { name: 'Acme Corp', sector: 'Industrials', subIndustry: 'Aerospace & Defense' },
+      { name: 'Acme Corp', sector: 'Financials', subIndustry: 'Banks' },
+      { name: 'Nosector Inc', sector: '', subIndustry: 'Whatever' },
+      { name: 'Beta Co', sector: 'Health Care', subIndustry: '' },
+    ]);
+    expect(rows).toEqual([
+      { name: 'Acme Corp', industry: 'Industrials / Aerospace & Defense' },
+      { name: 'Beta Co', industry: 'Health Care' },
+    ]);
   });
 });

@@ -246,6 +246,7 @@ describe('keep and run item rules', () => {
     level,
     fieldSlugs: [],
     active,
+    sponsorship: null,
   })
   const scope = (over: Partial<ScopeResult>): ScopeResult => ({
     scope: 'smartrecruiters:acme',

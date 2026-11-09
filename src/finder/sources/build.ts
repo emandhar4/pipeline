@@ -56,6 +56,7 @@ export type PostingInput = {
   levelHints?: { commitment?: string; employmentType?: string; simplify?: 'intern' | 'newgrad' }
   category?: string
   active?: boolean
+  sponsorship?: NormalizedPosting['sponsorship']
 }
 
 export function buildPosting(i: PostingInput): NormalizedPosting {
@@ -85,6 +86,7 @@ export function buildPosting(i: PostingInput): NormalizedPosting {
     level: classifyLevel(i.title, i.levelHints),
     fieldSlugs: fieldSlugsFromTitle(i.title, i.category),
     active: i.active ?? true,
+    sponsorship: i.sponsorship ?? null,
   }
 }
 

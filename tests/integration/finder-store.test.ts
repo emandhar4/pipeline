@@ -43,6 +43,7 @@ describe('finder store', () => {
       level: 'internship',
       fieldSlugs: ['software-engineering'],
       active: true,
+      sponsorship: null,
       ...over,
     }
   }

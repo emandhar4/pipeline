@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { termsFromText } from '../classify'
 import type { Http } from '../http'
-import type { ScopeResult } from '../types'
+import type { NormalizedPosting, ScopeResult } from '../types'
 import { SHAPE_ERROR, buildPosting, num, rec, scopeFailed, scopeOk, str, strs, toDate, tooManyRejected } from './build'
 import type { PostingInput } from './build'
 
@@ -24,6 +24,19 @@ function normalizeTerms(raw: string[], title: string): string[] {
   }
   if (out.size === 0) termsFromText(title).forEach((p) => out.add(p))
   return [...out]
+}
+
+function sponsorshipFrom(v: unknown): NormalizedPosting['sponsorship'] {
+  switch (str(v)?.toLowerCase()) {
+    case 'does not offer sponsorship':
+      return 'none'
+    case 'u.s. citizenship is required':
+      return 'citizens_only'
+    case 'offers sponsorship':
+      return 'offers'
+    default:
+      return null
+  }
 }
 
 export async function fetchSimplify(http: Http, kind: 'intern' | 'newgrad'): Promise<ScopeResult> {
@@ -56,6 +69,7 @@ export async function fetchSimplify(http: Http, kind: 'intern' | 'newgrad'): Pro
       levelHints: { simplify: kind },
       category: str(r.category),
       active: live,
+      sponsorship: sponsorshipFrom(r.sponsorship),
     }
     postings.push(buildPosting(input))
   }

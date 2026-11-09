@@ -22,6 +22,8 @@ export type NormalizedPosting = {
   level: JobLevel
   fieldSlugs: string[]
   active: boolean
+  /** Only Simplify states it; null when unknown. */
+  sponsorship: 'offers' | 'none' | 'citizens_only' | null
 }
 
 export type ScopeResult = {
