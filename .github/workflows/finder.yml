@@ -1,7 +1,10 @@
 name: Finder
 
-# Manual only. The daily cron is added after the first run's numbers are reviewed.
+# Daily at 10:17 UTC (off the hour, when GitHub delays cron jobs), plus manual runs.
+# Scheduled runs use the default branch and the input defaults below.
 on:
+  schedule:
+    - cron: '17 10 * * *'
   workflow_dispatch:
     inputs:
       only:
