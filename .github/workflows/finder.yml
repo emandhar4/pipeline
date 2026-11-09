@@ -26,14 +26,6 @@ jobs:
   finder:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-      # Inputs go through env, never inline in the script.
-      INPUT_ONLY: ${{ inputs.only }}
-      INPUT_RESOLVE_LIMIT: ${{ inputs.resolve_limit }}
-      # The CLI accepts manual|schedule; this workflow only ever runs manually.
-      FINDER_TRIGGER: manual
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,9 +36,17 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Run finder
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # Inputs go through env, never inline in the script.
+          INPUT_ONLY: ${{ inputs.only }}
+          INPUT_RESOLVE_LIMIT: ${{ inputs.resolve_limit }}
         run: |
           set -euo pipefail
-          args=(--resolve-limit "${INPUT_RESOLVE_LIMIT:-150}" --trigger "$FINDER_TRIGGER")
+          trigger=manual
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then trigger=schedule; fi
+          args=(--resolve-limit "${INPUT_RESOLVE_LIMIT:-150}" --trigger "$trigger")
           if [ -n "${INPUT_ONLY// /}" ]; then
             args+=(--only "$INPUT_ONLY")
           fi
