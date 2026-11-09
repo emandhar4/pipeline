@@ -74,15 +74,17 @@ export async function runFinder(deps: RunDeps, opts: RunOptions): Promise<RunSum
   const wanted = (source: string, scope: string) => !only || only.has(source) || only.has(scope)
   const scopes: ScopeSummary[] = []
   const progress = new Map<string, Progress>()
+  let goneByInactive = 0
+  let unrecorded = 0
 
   const run: Run | null = dry ? null : await store.startRun(opts.trigger)
   log(dry ? 'Dry run: nothing is written.' : `Run started (${opts.trigger}).`)
 
   async function handle(r: ScopeResult, keepExperienced: boolean): Promise<void> {
-    let counts: SaveCounts = { found: 0, new: 0 }
+    let counts: SaveCounts = { found: 0, new: 0, gone: 0 }
     if (r.status === 'ok') {
       if (dry) {
-        counts = { found: new Set(keptPostings(r, keepExperienced).active.map((p) => p.externalId)).size, new: 0 }
+        counts = { found: new Set(keptPostings(r, keepExperienced).active.map((p) => p.externalId)).size, new: 0, gone: 0 }
       } else {
         try {
           counts = await store.savePostings(run!, r, keepExperienced)
@@ -91,7 +93,16 @@ export async function runFinder(deps: RunDeps, opts: RunOptions): Promise<RunSum
         }
       }
     }
-    if (!dry) await store.recordItem(run!.id, r, counts)
+    goneByInactive += counts.gone
+    if (!dry) {
+      try {
+        await store.recordItem(run!.id, r, counts)
+      } catch {
+        // Without its item the scope is not 'ok' for finish_finder_run, so nothing of it goes gone.
+        unrecorded++
+        log(`${r.scope}: run item not recorded`)
+      }
+    }
     const item = runItemRow(r, counts)
     scopes.push({ scope: r.scope, source: r.source, status: item.status, found: counts.found, new: counts.new, reason: item.error ?? undefined })
 
@@ -110,6 +121,7 @@ export async function runFinder(deps: RunDeps, opts: RunOptions): Promise<RunSum
   try {
     if (!dry && !only) await resolvePhase(deps, opts.resolveLimit ?? DEFAULT_RESOLVE_LIMIT)
 
+
     for (const kind of ['intern', 'newgrad'] as const) {
       const scope = `simplify:${kind}`
       if (!wanted('simplify', scope)) continue
@@ -121,9 +133,10 @@ export async function runFinder(deps: RunDeps, opts: RunOptions): Promise<RunSum
 
     const boards = (await store.companiesToFetch()).filter((c) => wanted(c.ats, `${c.ats}:${c.token}`))
     if (only) {
+      const simplifyScopes = new Set(['simplify', 'simplify:intern', 'simplify:newgrad'])
       for (const o of only) {
-        if (o.includes(':') && !o.startsWith('simplify:') && !boards.some((c) => `${c.ats}:${c.token}` === o)) {
-          log(`${o}: no covered company with that board`)
+        if (!simplifyScopes.has(o) && !boards.some((c) => c.ats === o || `${c.ats}:${c.token}` === o)) {
+          log(`${o}: unmatched (no source or covered board by that name)`)
         }
       }
     }
@@ -153,7 +166,10 @@ export async function runFinder(deps: RunDeps, opts: RunOptions): Promise<RunSum
       return { runId: null, totals, scopes }
     }
 
-    const totals = await store.finishRun(run!.id)
+    if (unrecorded) log(`Run items not recorded: ${unrecorded} scopes.`)
+    const finished = await store.finishRun(run!.id)
+    // finish_finder_run counts the postings it turned gone; add those inactive rows turned gone.
+    const totals: Totals = { ...finished, gone: finished.gone + goneByInactive }
     log(`Run finished: found ${totals.found}, new ${totals.new}, seen ${totals.seen}, gone ${totals.gone}, failed scopes ${totals.failed_scopes}.`)
 
     const users = await store.userIdsToMatch()
@@ -179,13 +195,22 @@ export async function runFinder(deps: RunDeps, opts: RunOptions): Promise<RunSum
 async function resolvePhase({ http, store, log }: RunDeps, limit: number): Promise<void> {
   const list = await store.companiesToResolve(limit)
   if (!list.length) return
-  const tally = { covered: 0, notCovered: 0, retry: 0 }
+  const tally = { covered: 0, notCovered: 0, retry: 0, unsaved: 0 }
   await pool(list, RESOLVE_CONCURRENCY, async (c) => {
     const r = await resolveCompany(http, c)
-    await store.saveResolution(c.id, r)
+    try {
+      await store.saveResolution(c.id, r)
+    } catch {
+      tally.unsaved++
+      log(`resolve: could not save the result for ${c.name}`)
+      return
+    }
     if (!('notCovered' in r)) tally.covered++
     else if (r.notCovered === UNCHECKED) tally.retry++
     else tally.notCovered++
   })
-  log(`Resolve: ${list.length} companies checked: covered ${tally.covered}, not covered ${tally.notCovered}, retry next run ${tally.retry}.`)
+  log(
+    `Resolve: ${list.length} companies checked: covered ${tally.covered}, not covered ${tally.notCovered}, retry next run ${tally.retry}` +
+      (tally.unsaved ? `, not saved ${tally.unsaved}.` : '.'),
+  )
 }

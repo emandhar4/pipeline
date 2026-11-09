@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '../lib/database.types'
 import { dedupeKey } from './classify'
-import { keptPostings, runItemRow, type SaveCounts } from './keep'
+import { keptPostings, runItemRow, stampFor, type SaveCounts } from './keep'
 import { UNCHECKED, type ResolveResult } from './resolve'
 import type { AtsKind, BoardCompany, NormalizedPosting, ScopeResult } from './types'
 
@@ -92,9 +92,6 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
   // the same dedupe key concurrently could otherwise both try to insert it.
   let saveTail: Promise<unknown> = Promise.resolve()
 
-  /** finish_finder_run marks rows gone by last_seen < started_at; never stamp earlier than the run. */
-  const stampFor = (run: Run) => new Date(Math.max(Date.now(), Date.parse(run.startedAt))).toISOString()
-
   async function upsertPostings(r: ScopeResult, byKey: Map<string, NormalizedPosting>, lastSeen: string) {
     const ids = new Map<string, string>()
     let inserted = 0
@@ -135,9 +132,13 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
     return { ids, inserted }
   }
 
-  /** Inactive rows never create anything: an existing live source row goes gone, and its posting with it. */
-  async function markInactive(source: string, externalIds: string[], goneAt: string) {
+  /**
+   * Inactive rows never create anything: an existing live source row goes gone, and its posting
+   * with it when no live source is left. Returns how many postings went gone.
+   */
+  async function markInactive(source: string, externalIds: string[], goneAt: string): Promise<number> {
     const affected = new Set<string>()
+    let gone = 0
     for (const ext of chunks(externalIds, KEY_BATCH)) {
       const rows = must(
         await client
@@ -169,17 +170,19 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
       const alive = new Set(live.map((x) => x.posting_id))
       const dead = ids.filter((id) => !alive.has(id))
       if (dead.length) {
-        must(
-          await client.from('postings').update({ status: 'gone' }).in('id', dead).neq('status', 'gone'),
+        const flipped = must(
+          await client.from('postings').update({ status: 'gone' }).in('id', dead).neq('status', 'gone').select('id'),
           'mark postings gone',
         )
+        gone += flipped.length
       }
     }
+    return gone
   }
 
   async function savePostingsNow(run: Run, r: ScopeResult, keepExperienced: boolean): Promise<SaveCounts> {
     const { active, inactive } = keptPostings(r, keepExperienced)
-    const lastSeen = stampFor(run)
+    const lastSeen = stampFor(Date.now(), run.startedAt)
 
     // One source row per external id (last wins); one posting per dedupe key (first wins).
     const bySource = new Map<string, { p: NormalizedPosting; key: string }>()
@@ -208,9 +211,9 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
     // Inactive ids that are also live in this scope are not gone.
     const liveIds = new Set(bySource.keys())
     const goneIds = [...new Set(inactive.map((p) => p.externalId))].filter((id) => !liveIds.has(id))
-    if (goneIds.length) await markInactive(r.source, goneIds, lastSeen)
+    const gone = goneIds.length ? await markInactive(r.source, goneIds, lastSeen) : 0
 
-    return { found: bySource.size, new: inserted }
+    return { found: bySource.size, new: inserted, gone }
   }
 
   return {

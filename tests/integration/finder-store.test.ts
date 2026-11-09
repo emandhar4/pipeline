@@ -75,8 +75,8 @@ describe('finder store', () => {
     })
     const a = await store.savePostings(run, scope('test:simplify', [fromSimplify]), false)
     const b = await store.savePostings(run, scope('test:greenhouse', [fromBoard]), false)
-    expect(a).toEqual({ found: 1, new: 1 })
-    expect(b).toEqual({ found: 1, new: 0 })
+    expect(a).toEqual({ found: 1, new: 1, gone: 0 })
+    expect(b).toEqual({ found: 1, new: 0, gone: 0 })
 
     const { posting: row, sources } = await sourcesFor(`test:greenhouse:${board}:4001`)
     expect(row).not.toBeNull()
@@ -94,10 +94,10 @@ describe('finder store', () => {
       applyUrl: `https://boards.greenhouse.io/${board}/jobs/5001`,
     })
     const key = `test:greenhouse:${board}:5001`
-    expect(await store.savePostings(run, scope('test:greenhouse', [exp]), false)).toEqual({ found: 0, new: 0 })
+    expect(await store.savePostings(run, scope('test:greenhouse', [exp]), false)).toEqual({ found: 0, new: 0, gone: 0 })
     expect((await sourcesFor(key)).posting).toBeNull()
 
-    expect(await store.savePostings(run, scope('test:greenhouse', [exp]), true)).toEqual({ found: 1, new: 1 })
+    expect(await store.savePostings(run, scope('test:greenhouse', [exp]), true)).toEqual({ found: 1, new: 1, gone: 0 })
     expect((await sourcesFor(key)).posting).not.toBeNull()
   })
 
@@ -115,7 +115,7 @@ describe('finder store', () => {
       .eq('external_id', p.externalId)
     expect(src.error).toBeNull()
 
-    expect(await store.savePostings(run, scope('test:greenhouse', [p]), false)).toEqual({ found: 1, new: 0 })
+    expect(await store.savePostings(run, scope('test:greenhouse', [p]), false)).toEqual({ found: 1, new: 0, gone: 0 })
     const after = await sourcesFor(key)
     expect(after.posting!.status).toBe('seen')
     expect(after.posting!.first_seen).toBe(before.posting!.first_seen)
@@ -124,12 +124,12 @@ describe('finder store', () => {
 
   it('an inactive row is never inserted, and an existing one only goes gone', async () => {
     const fresh = posting({ externalId: `inactive-new-${suffix}`, applyUrl: `https://boards.greenhouse.io/${board}/jobs/7001`, active: false })
-    expect(await store.savePostings(run, scope('test:simplify', [fresh]), false)).toEqual({ found: 0, new: 0 })
+    expect(await store.savePostings(run, scope('test:simplify', [fresh]), false)).toEqual({ found: 0, new: 0, gone: 0 })
     expect((await sourcesFor(`test:greenhouse:${board}:7001`)).posting).toBeNull()
 
     const live = posting({ externalId: `inactive-old-${suffix}`, applyUrl: `https://boards.greenhouse.io/${board}/jobs/7002` })
     await store.savePostings(run, scope('test:simplify', [live]), false)
-    await store.savePostings(run, scope('test:simplify', [{ ...live, active: false }]), false)
+    expect(await store.savePostings(run, scope('test:simplify', [{ ...live, active: false }]), false)).toEqual({ found: 0, new: 0, gone: 1 })
     const after = await sourcesFor(`test:greenhouse:${board}:7002`)
     expect(after.sources).toHaveLength(1)
     expect(after.sources[0].gone_at).not.toBeNull()
@@ -138,7 +138,7 @@ describe('finder store', () => {
 
   it('records run items, a partial scope as skipped', async () => {
     const r: ScopeResult = { ...scope('test:partial', []), fetched: 1000, complete: false }
-    await store.recordItem(run.id, r, { found: 3, new: 1 })
+    await store.recordItem(run.id, r, { found: 3, new: 1, gone: 0 })
     const items = await admin.from('finder_run_items').select('scope, status, error, found, new').eq('run_id', run.id)
     expect(items.error).toBeNull()
     expect(items.data).toEqual([{ scope: 'test:partial', status: 'skipped', error: 'partial: stopped at 1000 rows', found: 3, new: 1 }])

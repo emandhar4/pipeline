@@ -3,7 +3,16 @@ import type { NormalizedPosting, ScopeResult } from './types'
 
 type RunItemStatus = Database['public']['Enums']['run_item_status']
 
-export type SaveCounts = { found: number; new: number }
+/** found/new: postings kept from the scope; gone: postings an inactive row turned gone. */
+export type SaveCounts = { found: number; new: number; gone: number }
+
+/**
+ * The last_seen stamp for a save: never earlier than the run's DB start, since finish_finder_run
+ * marks rows gone by last_seen < started_at and a lagging client clock must not do that.
+ */
+export function stampFor(nowMs: number, startedAt: string): string {
+  return new Date(Math.max(nowMs, Date.parse(startedAt))).toISOString()
+}
 
 /**
  * Splits a scope's postings into the active rows to keep and the inactive rows (which only ever
@@ -30,8 +39,8 @@ export function keptPostings(
 export function runItemRow(
   r: ScopeResult,
   counts: SaveCounts,
-): { status: RunItemStatus; error: string | null; fetched: number; found: number; new: number } {
-  const base = { fetched: r.fetched, found: counts.found, new: counts.new }
+): { status: RunItemStatus; error: string | null; fetched: number; found: number; new: number; gone: number } {
+  const base = { fetched: r.fetched, found: counts.found, new: counts.new, gone: counts.gone }
   if (r.status === 'ok' && !r.complete) return { ...base, status: 'skipped', error: `partial: stopped at ${r.fetched} rows` }
   if (r.status === 'ok') return { ...base, status: 'ok', error: null }
   return { ...base, status: r.status, error: r.reason ?? null }

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { FetchResult, Http } from '@/finder/http'
 import { interleaveByHost, runFinder } from '@/finder/run'
-import { keptPostings, runItemRow } from '@/finder/keep'
+import { keptPostings, runItemRow, stampFor } from '@/finder/keep'
 import type { Store, Totals } from '@/finder/store'
 import type { BoardCompany, NormalizedPosting, ScopeResult } from '@/finder/types'
 
@@ -73,7 +73,7 @@ function fakeStore(over: Partial<Store> = {}) {
     watchedCompanyIds: async () => new Set<string>(),
     savePostings: async (_run, r) => {
       calls.push(`savePostings:${r.scope}`)
-      return { found: r.postings.length, new: 0 }
+      return { found: r.postings.length, new: 0, gone: 0 }
     },
     recordItem: async (_run, r) => {
       calls.push(`recordItem:${r.scope}`)
@@ -267,17 +267,98 @@ describe('keep and run item rules', () => {
   })
 
   it('a partial scope is recorded as skipped so its postings never go gone', () => {
-    expect(runItemRow(scope({ complete: false }), { found: 40, new: 2 })).toMatchObject({
+    expect(runItemRow(scope({ complete: false }), { found: 40, new: 2, gone: 0 })).toMatchObject({
       status: 'skipped',
       error: 'partial: stopped at 1000 rows',
       found: 40,
       new: 2,
       fetched: 1000,
     })
-    expect(runItemRow(scope({}), { found: 40, new: 2 })).toMatchObject({ status: 'ok', error: null })
-    expect(runItemRow(scope({ status: 'failed', reason: 'HTTP 404', complete: false, fetched: 0 }), { found: 0, new: 0 })).toMatchObject({
+    expect(runItemRow(scope({}), { found: 40, new: 2, gone: 0 })).toMatchObject({ status: 'ok', error: null })
+    expect(runItemRow(scope({ status: 'failed', reason: 'HTTP 404', complete: false, fetched: 0 }), { found: 0, new: 0, gone: 0 })).toMatchObject({
       status: 'failed',
       error: 'HTTP 404',
     })
+  })
+})
+
+describe('fix round 1', () => {
+  it('a failed recordItem or saveResolution does not abort the run', async () => {
+    const lines: string[] = []
+    let thrown = false
+    const { store, calls } = fakeStore({
+      companiesToResolve: async () => [{ id: 'c-9', name: 'Gamma Labs', careersUrl: null }],
+      saveResolution: async () => {
+        throw new Error('db hiccup')
+      },
+      recordItem: async (_run, r) => {
+        if (!thrown) {
+          thrown = true
+          throw new Error('db hiccup')
+        }
+        calls.push(`recordItem:${r.scope}`)
+      },
+    })
+    const http = fakeHttp((url) => (url.includes('gamma') ? { ok: false, status: 404, reason: 'HTTP 404' } : okHandler(url)))
+    const summary = await runFinder({ http, store, log: (l) => lines.push(l) }, { trigger: 'test', resolveLimit: 1 })
+    expect(calls).toContain('finishRun')
+    expect(calls.filter((c) => c.startsWith('refreshMatches'))).toHaveLength(2)
+    expect(calls.at(-1)).toBe('prune')
+    expect(summary.runId).toBe('run-1')
+    expect(lines.some((l) => l.includes('Gamma Labs'))).toBe(true)
+    expect(lines.some((l) => l.includes('simplify:intern') && /not recorded/.test(l))).toBe(true)
+    expect(lines.join('\n')).not.toContain('db hiccup')
+  })
+
+  it('postings flipped gone by inactive rows add to the gone total', async () => {
+    const { store } = fakeStore({
+      savePostings: async (_run, r) => ({ found: r.postings.length, new: 0, gone: r.scope === 'simplify:intern' ? 2 : 0 }),
+    })
+    const summary = await runFinder({ http: fakeHttp(okHandler), store, log: () => {} }, { trigger: 'test' })
+    expect(summary.totals.gone).toBe(TOTALS.gone + 2)
+    expect(summary.totals.found).toBe(TOTALS.found)
+  })
+
+  it('a save failure is reported and recorded as failed', async () => {
+    const recorded: { scope: string; status: string; reason?: string }[] = []
+    const { store } = fakeStore({
+      savePostings: async (_run, r) => {
+        if (r.scope === 'greenhouse:beta') throw new Error('insert postings: timeout')
+        return { found: r.postings.length, new: 0, gone: 0 }
+      },
+      recordItem: async (_run, r) => {
+        recorded.push({ scope: r.scope, status: r.status, reason: r.reason })
+      },
+    })
+    const summary = await runFinder({ http: fakeHttp(okHandler), store, log: () => {} }, { trigger: 'test' })
+    expect(summary.scopes.find((s) => s.scope === 'greenhouse:beta')).toMatchObject({
+      status: 'failed',
+      found: 0,
+      reason: 'save failed: insert postings: timeout',
+    })
+    expect(recorded.find((r) => r.scope === 'greenhouse:beta')).toMatchObject({ status: 'failed', reason: 'save failed: insert postings: timeout' })
+  })
+
+  it('--only logs unknown source names and unmatched scopes', async () => {
+    const lines: string[] = []
+    const { store } = fakeStore()
+    const s = await runFinder(
+      { http: fakeHttp(okHandler), store, log: (l) => lines.push(l) },
+      { trigger: 'test', dryRun: true, only: ['greenhous', 'lever:nope', 'greenhouse'] },
+    )
+    expect(s.scopes.map((x) => x.scope)).toEqual(['greenhouse:beta'])
+    expect(lines.some((l) => l.startsWith('greenhous:') && /unmatched/.test(l))).toBe(true)
+    expect(lines.some((l) => l.startsWith('lever:nope:') && /unmatched/.test(l))).toBe(true)
+    expect(lines.some((l) => l.startsWith('greenhouse:') && /unmatched/.test(l))).toBe(false)
+  })
+})
+
+describe('stampFor', () => {
+  const started = '2026-11-08T12:00:00.000Z'
+  it('uses startedAt when the client clock is behind it', () => {
+    expect(stampFor(Date.parse(started) - 5000, started)).toBe(started)
+  })
+  it('uses the client clock when it is ahead of startedAt', () => {
+    expect(stampFor(Date.parse(started) + 5000, started)).toBe('2026-11-08T12:00:05.000Z')
   })
 })

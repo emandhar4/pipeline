@@ -251,6 +251,15 @@ describe('workday adapter', () => {
     expect(d26).toMatchObject({ level: 'internship', states: ['TX'] })
   })
 
+  it('external ids are unique per tenant: host + externalPath', async () => {
+    const one = { jobPostings: [{ title: 'Software Intern', externalPath: '/job/Austin-TX/Intern_R1', postedOn: 'Posted Today' }] }
+    const metaB = { host: 'other.wd1.myworkdayjobs.com', tenant: 'other', site: 'Jobs' }
+    const a = await fetchBoard(fakeHttp(() => ok(one)).http, company('workday', 'example', meta))
+    const b = await fetchBoard(fakeHttp(() => ok(one)).http, company('workday', 'other', metaB))
+    expect(a.postings[0].externalId).toBe('example.wd5.myworkdayjobs.com/job/Austin-TX/Intern_R1')
+    expect(b.postings[0].externalId).toBe('other.wd1.myworkdayjobs.com/job/Austin-TX/Intern_R1')
+  })
+
   it('stops at 3 pages per search', async () => {
     const full = { jobPostings: Array.from({ length: 20 }, (_, i) => ({ title: 'Intern', externalPath: `/job/x/${Math.random()}-${i}`, postedOn: 'Posted Today' })) }
     const { http, calls } = fakeHttp(() => ok(full))

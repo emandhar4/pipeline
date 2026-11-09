@@ -67,7 +67,7 @@ export async function fetchWorkday(http: Http, c: BoardCompany, scope: string): 
         const applyUrl = `https://${host}/en-US/${site}${path}`
         postings.push(
           buildPosting({
-            externalId: path,
+            externalId: `${host}${path}`, // paths repeat across tenants; the host makes them unique
             company: c.name,
             title,
             locations: str(r.locationsText) ? [str(r.locationsText)!] : [],
