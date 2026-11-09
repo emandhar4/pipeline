@@ -83,11 +83,11 @@ Step 0 is optional and Steps 1 and 2 are the fast path (~2 minutes); search star
 
 ### 3.3 Posting finder (daily, cloud)
 - **Sources:**
-  - intern-list.com category lists matching users' fields (its robots.txt allows crawling; find the lowest-load way to read it; check whether detail pages link to the employer's apply URL and prefer that URL).
-  - GitHub lists: SimplifyJobs/Summer2027-Internships, and the jobright-ai category repos (e.g. `2026-Business-Analyst-Internship`, `2026-Data-Analysis-Internship`, `2026-Product-Management-Internship`, `2026-Consultant-Internship`; use whichever year's repos are current for the user's season).
-  - Public ATS endpoints for a watchlist: Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Rippling, Personio, Workable, Workday (POST endpoint).
-  - New-grad sources (vetted in Phase 3): SimplifyJobs/New-Grad-Positions and current jobright-ai new-grad repos.
-  - JobSpy boards later, terms permitting; never LinkedIn scraping.
+  - GitHub lists: SimplifyJobs/Summer2027-Internships and SimplifyJobs/New-Grad-Positions (one read of `listings.json` each; employer apply links; tech categories only).
+  - Public ATS endpoints for a watchlist: Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Workable. Rippling and Personio are not built.
+  - Workday (undocumented POST endpoint), **low volume**: only companies whose Workday careers link is known, `intern` then `graduate` searches, at most 3 pages of 20, 1 request per 2 s per host, skipped if robots.txt disallows `/wday/`.
+  - **Dropped:** intern-list.com and the jobright-ai repos. Both are run by Jobright, whose terms (updated 2026-07-29) forbid scraping, harvesting or redistributing job or employer data, and their apply links route through jobright.ai.
+  - **Never:** LinkedIn and Handshake (terms / login wall). JobSpy boards remain a later maybe, terms permitting.
 - **Watchlist** is built automatically from: users' targets/dream companies, Fortune 500, big employers in each user's regions, and jobsync's Greenhouse/Lever/Ashby company directories. For each user, this includes large employers in their home and school regions. Each company records its detected ATS and board token, or "not covered" with a reason.
 - **Normalize** every posting to: company, title, locations, source, source_url, apply_url, posted_date, first_seen, pay range, season, description snippet.
 - **Dedupe** across sources; mark each posting `new`, `seen`, or `gone`. Keep every source a posting was found on.

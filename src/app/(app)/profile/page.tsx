@@ -14,6 +14,8 @@ import { stepOneHints, stepTwoHint } from '../onboarding/prefill';
 import { ResumeStep } from '../onboarding/resume-step';
 import { StepOneForm } from '../onboarding/step-one-form';
 import { StepTwoForm } from '../onboarding/step-two-form';
+import { createClient } from '@/lib/supabase/server';
+import { CompaniesSection, type WatchedCompany } from './companies-section';
 
 export const metadata: Metadata = { title: 'Profile · Pipeline' };
 
@@ -49,6 +51,16 @@ async function ProfileForms({ searchParams }: Pick<PageProps<'/profile'>, 'searc
   const one = stepOneValues(state);
   const two = stepTwoValues(state);
   const suggestions = resume?.suggestions ?? null;
+  const supabase = await createClient();
+  const watched = await supabase
+    .from('user_companies')
+    .select('created_at, companies(id, name, ats, coverage, coverage_reason)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (watched.error) console.error('[profile] read watched companies failed', { message: watched.error.message });
+  const companies: WatchedCompany[] = (watched.data ?? []).flatMap((r) =>
+    r.companies ? [r.companies as WatchedCompany] : [],
+  );
 
   return (
     <>
@@ -95,6 +107,8 @@ async function ProfileForms({ searchParams }: Pick<PageProps<'/profile'>, 'searc
           hint={stepTwoHint(two, suggestions, categories)}
         />
       </section>
+
+      <CompaniesSection companies={companies} loadFailed={!!watched.error} />
     </>
   );
 }

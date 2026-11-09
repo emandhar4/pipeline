@@ -1,0 +1,6 @@
+{"jobs":[
+ {"id":4001,"title":"Software Engineering Intern, Summer 2027","location":{"name":"Austin, TX"},"absolute_url":"https://boards.greenhouse.io/examplerobotics/jobs/4001","first_published":"2026-10-20T14:03:11-04:00","updated_at":"2026-11-01T10:00:00-04:00","company_name":"Example Robotics","pay_input_ranges":[{"min_cents":4500,"max_cents":5500,"currency_type":"USD","title":"Intern","blurb":"hourly","unit":"hour"}]},
+ {"id":4002,"title":"Mechanical Engineer, New Grad","location":{"name":"Remote - United States"},"absolute_url":"https://boards.greenhouse.io/examplerobotics/jobs/4002","first_published":"2026-10-25T09:00:00-04:00","pay_input_ranges":[{"min_cents":9500000,"max_cents":12000000,"currency_type":"USD"}]},
+ {"id":4003,"title":"Senior Director of Operations","location":{"name":"Detroit, MI"},"absolute_url":"https://boards.greenhouse.io/examplerobotics/jobs/4003","first_published":"2026-09-01T09:00:00-04:00"},
+ {"id":4004,"title":"Marketing Coordinator","location":{"name":""},"absolute_url":"https://boards.greenhouse.io/examplerobotics/jobs/4004","first_published":"2026-10-30T09:00:00-04:00"}
+]}

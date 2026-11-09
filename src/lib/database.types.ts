@@ -239,6 +239,7 @@ export type Database = {
           ats: Database["public"]["Enums"]["ats_kind"]
           ats_meta: Json
           ats_token: string | null
+          careers_url: string | null
           coverage: Database["public"]["Enums"]["coverage_status"]
           coverage_reason: string | null
           created_at: string
@@ -248,13 +249,16 @@ export type Database = {
           name: string
           normalized_name: string
           regions: string[]
+          resolved_at: string | null
           updated_at: string
+          watchers: number
         }
         Insert: {
           aliases?: string[]
           ats?: Database["public"]["Enums"]["ats_kind"]
           ats_meta?: Json
           ats_token?: string | null
+          careers_url?: string | null
           coverage?: Database["public"]["Enums"]["coverage_status"]
           coverage_reason?: string | null
           created_at?: string
@@ -264,13 +268,16 @@ export type Database = {
           name: string
           normalized_name: string
           regions?: string[]
+          resolved_at?: string | null
           updated_at?: string
+          watchers?: number
         }
         Update: {
           aliases?: string[]
           ats?: Database["public"]["Enums"]["ats_kind"]
           ats_meta?: Json
           ats_token?: string | null
+          careers_url?: string | null
           coverage?: Database["public"]["Enums"]["coverage_status"]
           coverage_reason?: string | null
           created_at?: string
@@ -280,7 +287,9 @@ export type Database = {
           name?: string
           normalized_name?: string
           regions?: string[]
+          resolved_at?: string | null
           updated_at?: string
+          watchers?: number
         }
         Relationships: []
       }
@@ -402,10 +411,12 @@ export type Database = {
           company_id: string | null
           error: string | null
           fetched: number
+          found: number
           gone: number
           id: string
           new: number
           run_id: string
+          scope: string
           seen: number
           source: string
           status: Database["public"]["Enums"]["run_item_status"]
@@ -414,10 +425,12 @@ export type Database = {
           company_id?: string | null
           error?: string | null
           fetched?: number
+          found?: number
           gone?: number
           id?: string
           new?: number
           run_id: string
+          scope: string
           seen?: number
           source: string
           status?: Database["public"]["Enums"]["run_item_status"]
@@ -426,10 +439,12 @@ export type Database = {
           company_id?: string | null
           error?: string | null
           fetched?: number
+          found?: number
           gone?: number
           id?: string
           new?: number
           run_id?: string
+          scope?: string
           seen?: number
           source?: string
           status?: Database["public"]["Enums"]["run_item_status"]
@@ -456,6 +471,7 @@ export type Database = {
           finished_at: string | null
           id: string
           started_at: string
+          status: string
           totals: Json
           trigger: string | null
         }
@@ -463,6 +479,7 @@ export type Database = {
           finished_at?: string | null
           id?: string
           started_at?: string
+          status?: string
           totals?: Json
           trigger?: string | null
         }
@@ -470,6 +487,7 @@ export type Database = {
           finished_at?: string | null
           id?: string
           started_at?: string
+          status?: string
           totals?: Json
           trigger?: string | null
         }
@@ -574,27 +592,33 @@ export type Database = {
         Row: {
           external_id: string
           first_seen: string
+          gone_at: string | null
           id: string
           last_seen: string
           posting_id: string
+          scope: string
           source: string
           source_url: string | null
         }
         Insert: {
           external_id: string
           first_seen?: string
+          gone_at?: string | null
           id?: string
           last_seen?: string
           posting_id: string
+          scope: string
           source: string
           source_url?: string | null
         }
         Update: {
           external_id?: string
           first_seen?: string
+          gone_at?: string | null
           id?: string
           last_seen?: string
           posting_id?: string
+          scope?: string
           source?: string
           source_url?: string | null
         }
@@ -613,12 +637,15 @@ export type Database = {
           apply_url: string | null
           company_id: string | null
           company_name: string
+          countries: string[]
           created_at: string
           dedupe_key: string
+          field_slugs: string[]
           first_seen: string
           id: string
           last_seen: string
           level: Database["public"]["Enums"]["job_level"]
+          location_unknown: boolean
           locations: string[]
           pay_max_cents: number | null
           pay_min_cents: number | null
@@ -627,7 +654,9 @@ export type Database = {
           remote: Database["public"]["Enums"]["remote_kind"]
           season: string | null
           snippet: string | null
+          states: string[]
           status: Database["public"]["Enums"]["posting_status"]
+          terms: string[]
           title: string
           updated_at: string
         }
@@ -635,12 +664,15 @@ export type Database = {
           apply_url?: string | null
           company_id?: string | null
           company_name: string
+          countries?: string[]
           created_at?: string
           dedupe_key: string
+          field_slugs?: string[]
           first_seen?: string
           id?: string
           last_seen?: string
           level?: Database["public"]["Enums"]["job_level"]
+          location_unknown?: boolean
           locations?: string[]
           pay_max_cents?: number | null
           pay_min_cents?: number | null
@@ -649,7 +681,9 @@ export type Database = {
           remote?: Database["public"]["Enums"]["remote_kind"]
           season?: string | null
           snippet?: string | null
+          states?: string[]
           status?: Database["public"]["Enums"]["posting_status"]
+          terms?: string[]
           title: string
           updated_at?: string
         }
@@ -657,12 +691,15 @@ export type Database = {
           apply_url?: string | null
           company_id?: string | null
           company_name?: string
+          countries?: string[]
           created_at?: string
           dedupe_key?: string
+          field_slugs?: string[]
           first_seen?: string
           id?: string
           last_seen?: string
           level?: Database["public"]["Enums"]["job_level"]
+          location_unknown?: boolean
           locations?: string[]
           pay_max_cents?: number | null
           pay_min_cents?: number | null
@@ -671,7 +708,9 @@ export type Database = {
           remote?: Database["public"]["Enums"]["remote_kind"]
           season?: string | null
           snippet?: string | null
+          states?: string[]
           status?: Database["public"]["Enums"]["posting_status"]
+          terms?: string[]
           title?: string
           updated_at?: string
         }
@@ -1067,7 +1106,11 @@ export type Database = {
     }
     Functions: {
       count_users_without_profile: { Args: never; Returns: number }
+      finish_finder_run: { Args: { p_run: string }; Returns: Json }
       hook_require_invite: { Args: { event: Json }; Returns: Json }
+      normalize_company: { Args: { p_name: string }; Returns: string }
+      prune_finder_data: { Args: { p_key_prefix?: string }; Returns: Json }
+      refresh_matches: { Args: { p_user: string }; Returns: string }
       search_majors: {
         Args: { lim?: number; q: string }
         Returns: {
@@ -1101,6 +1144,16 @@ export type Database = {
         }
       }
       us_state_from_location: { Args: { t: string }; Returns: string }
+      watch_company: {
+        Args: {
+          p_ats: string
+          p_careers_url: string
+          p_meta: Json
+          p_name: string
+          p_token: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       ai_job_kind:

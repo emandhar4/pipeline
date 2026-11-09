@@ -161,11 +161,52 @@ Phase 2 uses real data only: no fictional seed rows in shared tables. The dashbo
 - Task due dates display in UTC until the user's time zone is stored.
 - Each dashboard panel has its own error boundary (retry in place), so one failed query does not blank the page.
 
-## Phase 3 decisions (open)
+## Phase 3: daily finder (2026-11-08)
 
-- ~~Structured regions (country plus subdivision) and an open-to-remote preference, replacing free-text locations (I3).~~ Resolved in Phase 2b (states, countries and `work_style`).
-- Season vocabulary (term plus year) and whether a user may pick more than one season (M7).
-- A "search requested" signal, and selecting users to search by "has a primary field and a season" instead of `onboarding_step` (M8).
+Resolved from the earlier open items: ~~I3 structured regions~~ (Phase 2b). ~~M7~~ Season stays one pick from `seasonOptions`; internships match by `terms`. ~~M8~~ Users are selected by the SQL completeness check; "search requested" is the profile save calling `refresh_matches`.
+
+### Sources (vetted 2026-11-08)
+
+| Source | Status | Why / how |
+|---|---|---|
+| SimplifyJobs Summer2027-Internships and New-Grad-Positions | Use | One GET of `listings.json` (branch `dev`) each; keep `active && is_visible`. No LICENSE: we store normalized rows and link to the employer, never republish the file. Tech categories only. |
+| Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Workable | Use | Documented public board JSON, one company board per scope. |
+| Workday | Use, low volume | Only companies with a known careers link (a user pasted it). Undocumented `cxs` POST, `intern` then `graduate`, at most 3 pages of 20 per search, 1 request per 2 s per host, skipped if the tenant's robots.txt disallows `/wday/`. |
+| intern-list.com, jobright-ai repos | Dropped | Run by Jobright; its terms (updated 2026-07-29) forbid scraping, harvesting or redistributing job or employer data, and apply links route through jobright.ai. Reverses the original spec source list. |
+| LinkedIn, Handshake | Never | Terms / login wall. Phase 5 import covers what the user applied to there. |
+
+Watchlist seed: MIT-licensed `Gsync/jobsync` company directories (~5,400 boards) plus the public-domain S&P 500 constituents list (HQ state as `regions`), at pinned SHAs. Users add more companies by name on Profile, with an optional careers link as a fallback.
+
+### Product rules
+
+- **Goal is coverage:** never miss a role worth applying to. The fit score and the bar are Phase 4.
+- **Early-career rule:** keep roles with level `internship` or `new_grad` from every company. Experienced or unknown-level roles are kept only from companies some user watches. This bounds database size under the 500 MB free tier.
+- **Matching (`refresh_matches`):** level vs career stage, season (internships by `terms`), places vs work style, fields. Avoided industries, capped or rejected companies, pay floor and work authorization are Phase 4. `confirm_pay` is set when the posting has no pay.
+  - `remote='remote'` means "a remote option exists" (any location part remote, no "hybrid" in the text). A posting with offices and a remote option keeps its states and `remote='remote'`.
+  - `in_person`: place overlap, and fully remote postings (`remote='remote'` and no states) do not count. Consequence: "London, UK or Remote" is treated as fully remote for in-person users.
+  - `either`: place overlap, or remote with US/no countries. `remote_only`: remote with US/no countries.
+  - A posting with no parsable location passes the place filter with reason `location_unknown` ("Location not listed").
+- **Incomplete profile** (null `career_stage`, null `work_style`, no places unless `remote_only`, no primary field, or null `season`) gets no new matches; the dashboard asks the user to finish the profile. "No places" is never read as "anywhere".
+- **Failure handling:** a failed scope is recorded as failed with a reason, never as 0 found, and never marks its postings gone.
+- **Partial scopes:** a capped fetch (SmartRecruiters 10 pages, Workday 3 pages per search) reports `complete: false`; the store records the run item as `skipped` with "partial: stopped at N rows", so its unseen postings are never marked gone. Cost: postings that vanish from a capped scope linger until another source or a manual cleanup.
+- **Simplify inactive rows** are never inserted if unseen before (~12k history rows); an existing source row is only set gone. Inactive rows are matched by scope, not just source: one Simplify id can be live in `simplify:intern` and inactive in `simplify:newgrad`, and the other list's flag must not end it (run 1 wrongly marked 31 postings gone this way; the next run revived them).
+- **A board that returns HTTP 404** resets its company to `ats='unknown'`, `coverage='unknown'`, `resolved_at` null (guarded by the fetched ats and token), so the resolver re-probes it, and retires that scope's live source rows: postings left with no live source go `gone`. Without this, ~142 stale seed tokens failed daily, showed "Covered" on Profile, and their postings stayed live with dead links forever. Cost: a 404 from an ATS-side glitch drops a good token until the resolver finds it again; a re-resolve to the same token revives the rows.
+- **A posting's facts add up across sources:** when a posting is seen again, `field_slugs` and `terms` are unioned with the stored values, and `level` keeps the stored value unless it is `unknown`. Board sightings (saved after Simplify) would otherwise erase Simplify's category-derived fields and internship/new-grad level. Cost: a wrong field or level from one source sticks while the posting lives.
+
+### Builder calls
+
+- **Dedupe key:** `canonicalJobKey(applyUrl)` for recognizable ATS job URLs (`greenhouse:<token>:<id>`, `lever:...`, `ashby:...`, `workday:<host>:<path>`), else `h:` + sha1 of normalized company, title, location key and sorted countries. This joins the same job found in Simplify and on the company's own board.
+- **Status:** `new` in the run that first inserts a posting, `seen` from the next run, `gone` when every `posting_sources` row is gone. A source row goes gone when its scope succeeded and did not return it (or Simplify says inactive). Timestamps use max(client now, `run.started_at`) so clock lag cannot mark live rows gone.
+- **Retention:** `gone` postings with `last_seen` older than 60 days are deleted unless a match is `saved` or `applied`. `finder_run_items` older than 30 days are deleted; `finder_runs` are kept.
+- **Polite fetch:** user agent `PipelineFinder/1.0 (+https://github.com/emandhar4/pipeline)`; per-host spacing 500 ms (Lever 1000 ms, Workday 2000 ms) with the slot held through the fetch; boards are interleaved round-robin by host, not drained one ATS at a time; retries on 429/5xx/network errors at 2 s, 8 s, 30 s (honoring `Retry-After` up to 60 s); 30 s timeout; then the scope is `failed` with the reason.
+- **Resolver:** at most 150 `unknown` companies probed per run, about 18 fetches per company. Name-probing slug candidates are the compact and hyphenated forms only (no bare first word, to avoid recording another employer's board). It does not try the EU Lever host. If any probe hit a transient error and nothing matched, the result is "Could not check its job board this run." and the company stays `unknown`, so an outage never records "no board". That result still touches the company's `updated_at`, and the queue picks watched companies first, then oldest `updated_at`, so persistently unreachable companies rotate to the back instead of filling every run's 150. Cost: a company whose token is only its first word needs a careers link.
+- **Workflow:** `finder.yml` runs daily at 10:17 UTC (`cron: '17 10 * * *'`, about 5–6 am US Eastern, off the top of the hour when GitHub delays cron jobs) and on `workflow_dispatch`, with `only` and `resolve_limit` inputs passed through env vars (scheduled runs use the defaults: everything, 150). Turned on after the user reviewed the first run's numbers. Scheduled workflows run from the default branch, so the schedule starts once `finder.yml` is merged to `main`. GitHub pauses scheduled workflows in a public repo after 60 days with no repository activity; the dashboard's "The finder last ran ..." note (shown when the last finished run is over 36 hours old) is how that surfaces, and re-enabling the workflow in the Actions tab fixes it. `workflow_dispatch` can only be triggered once `finder.yml` is on the default branch. The log holds counts, sources and company names only, never user data (the repo is public).
+- **Test rows in global tables:** `dedupe_key` `test:`, `posting_sources.source` `test`, `finder_runs.trigger` `test`, and test companies named `Test- ...` (normalize_company turns `-` into a space, so no normalized name can start `test-`).
+
+### Open items
+
+- Remote matching is US-only: an `either`/`remote_only` user with non-US `work_countries` misses e.g. "Remote - UK"; fixing it needs a migration.
+- A permanently bot-blocked (403) slug host keeps a company `unknown` forever (retried each time it reaches the front of the queue), so it never shows "add a careers link". Giving up after N tries needs a counter column (a migration).
 
 ## Phase 2b: onboarding UX (decided and built 2026-11-08)
 

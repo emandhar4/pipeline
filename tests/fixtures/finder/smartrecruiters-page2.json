@@ -1,0 +1,23 @@
+{
+ "offset": 2,
+ "limit": 100,
+ "totalFound": 3,
+ "content": [
+  {
+   "id": "743999000000003",
+   "name": "Graduate Analyst Program",
+   "uuid": "cccc0003",
+   "releasedDate": "2026-10-29T08:00:00.000Z",
+   "location": {
+    "city": "London",
+    "country": "gb",
+    "remote": true,
+    "hybrid": false
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   }
+  }
+ ]
+}

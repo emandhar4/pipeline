@@ -1,0 +1,5 @@
+{"offers":[
+ {"id":9001,"status":"published","title":"Marketing Intern","slug":"marketing-intern","careers_url":"https://exampleco.recruitee.com/o/marketing-intern","careers_apply_url":"https://exampleco.recruitee.com/o/marketing-intern/c/new","created_at":"2026-10-10 09:00:00 UTC","published_at":"2026-10-12 09:00:00 UTC","location":"Denver, CO, United States","remote":false,"hybrid":true,"on_site":false,"employment_type_code":"intern","salary":{"min":"20","max":"25","period":"hour","currency":"USD"}},
+ {"id":9002,"status":"published","title":"Sales Associate","slug":"sales-associate","careers_url":"https://exampleco.recruitee.com/o/sales-associate","created_at":"2026-10-11 09:00:00 UTC","location":"Portland, OR","remote":true,"employment_type_code":"fulltime"},
+ {"id":9003,"status":"closed","title":"Closed Intern Role","slug":"closed-intern","careers_url":"https://exampleco.recruitee.com/o/closed-intern","created_at":"2026-08-11 09:00:00 UTC","location":"Reno, NV","employment_type_code":"intern"}
+]}

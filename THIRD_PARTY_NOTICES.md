@@ -2,7 +2,35 @@
 
 ## Gsync / jobsync (MIT)
 
-Pipeline borrows ideas and MIT-licensed data from Gsync/jobsync. The license text and a list of what was borrowed will be added here when data is first imported (Phase 3).
+The `companies` watchlist seed (`supabase/migrations/20261109000200_seed_companies.sql`) uses the Greenhouse, Lever and Ashby board lists from https://github.com/Gsync/jobsync (commit 8c20325c35dbf203334a270cef5aef446f06a774, `src/lib/scraper/*/companies.json`), under this license:
+
+```
+MIT License
+
+Copyright (c) 2024 gsync
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## S&P 500 constituents (ODC PDDL)
+
+The same seed uses company names and headquarters locations from https://github.com/datasets/s-and-p-500-companies (commit 05c998c3e714b8dc9b621239bbdef92bccefc376, `data/constituents.csv`), released under the Open Data Commons Public Domain Dedication and License (PDDL 1.0, https://opendatacommons.org/licenses/pddl/1-0/).
 
 ## College Scorecard (public domain)
 

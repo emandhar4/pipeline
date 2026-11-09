@@ -12,7 +12,7 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgr
 - `npm run lint`
 - `npm run typecheck` (`next typegen && tsc --noEmit`)
 - `npm test` (Vitest: `tests/unit`, `tests/integration`)
-- `npm run test:e2e` (Playwright)
+- `npm run test:e2e` (Playwright). On this machine run it against a production build (`npm run build && npm run start`, then `npm run test:e2e`, which reuses the running server): the dev server is very slow here (about a minute to start, ~45 s per page).
 - CI (`.github/workflows/ci.yml`): lint, typecheck, unit tests, build and `node scripts/check-bundle-secrets.mjs` on every push (any branch) and PR to `main`; integration tests only on push to `main`.
 
 ## Constraints
@@ -38,8 +38,10 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgr
 - Onboarding: `src/lib/onboarding/` (pure `schema.ts`/`options.ts`, server-only `profile.ts`) and `src/app/(app)/onboarding/`, `src/app/(app)/profile/` (pure `prefill.ts` for resume prefill and hints, `steps.ts` for step-marker links)
 - Regions and lookups: `src/lib/onboarding/regions.ts` (states, BEA areas, `stateFromLocation`), `lookups.ts` (school/major type-ahead queries)
 - Resume reading: `src/lib/resume/` (pure `parse.ts`/`types.ts`/`field-keywords.ts`, server-only `extract.ts`/`keyword-reader.ts`/`process.ts`; `reader.ts` is the swap point for a future LLM reader)
-- Seed generators (rarely rerun): `SCORECARD_API_KEY=... npx tsx scripts/build-schools-seed.ts` (key in gitignored `.env.local`; rewrites `supabase/migrations/20261108000700_seed_schools.sql`) and `npx tsx scripts/build-majors-seed.ts <CIPCode2020.csv>` (downloaded from NCES; rewrites `...000600_seed_majors.sql`)
+- Seed generators (rarely rerun): `SCORECARD_API_KEY=... npx tsx scripts/build-schools-seed.ts` (key in gitignored `.env.local`; rewrites `supabase/migrations/20261108000700_seed_schools.sql`) and `npx tsx scripts/build-majors-seed.ts <CIPCode2020.csv>` (downloaded from NCES; rewrites `...000600_seed_majors.sql`) and `npx tsx scripts/build-companies-seed.ts` (downloads the jobsync ATS lists and S&P 500 constituents at pinned SHAs; rewrites `20261109000200_seed_companies.sql`)
 - Dashboard: pure helpers in `src/lib/dashboard/` (`today.ts`, `health.ts`), server-only `queries.ts`, panels in `src/app/(app)/dashboard/`
+- Finder: `src/finder/` (no `server-only`, no Next imports): `sources/` (one adapter per ATS plus `simplify.ts`), `classify/` (level, location, fields, terms, dedupe keys), `resolve.ts` (find a company's ATS), `keep.ts`, `http.ts` (polite fetch), `store.ts` (Supabase), `run.ts`. CLI: `npx tsx scripts/finder.ts [--only simplify,greenhouse:<token>] [--dry-run] [--resolve-limit 150] [--trigger manual|schedule]` (needs `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SECRET_KEY`). Workflow: `.github/workflows/finder.yml` (daily at 10:17 UTC, plus manual `workflow_dispatch` with inputs `only` and `resolve_limit`). Company watchlist helpers: `src/lib/companies/`; Profile company form and `/coverage` run report under `src/app/(app)/`. Matching is the SQL function `refresh_matches`.
+- Finder test rows in global tables use these prefixes: `postings.dedupe_key` `test:`, `posting_sources.source` `test`, `finder_runs.trigger` `test`, companies named `Test- ...`. Tests clean up their own rows only.
 - Test-user cleanup: `npx tsx scripts/cleanup-test-users.ts [--dry-run]` (only `@example.test`)
 
 ## Working rules

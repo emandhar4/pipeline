@@ -1,0 +1,4 @@
+{"offset":0,"limit":100,"totalFound":3,"content":[
+ {"id":"743999000000001","name":"Finance Intern","uuid":"cccc0001","refNumber":"REF1","releasedDate":"2026-10-22T08:00:00.000Z","location":{"city":"Chicago","region":"IL","country":"us","remote":false,"hybrid":false},"typeOfEmployment":{"id":"intern","label":"Intern"},"company":{"identifier":"ExampleBank","name":"Example Bank"}},
+ {"id":"743999000000002","name":"Senior Risk Manager","uuid":"cccc0002","releasedDate":"2026-09-02T08:00:00.000Z","location":{"city":"Dallas","region":"TX","country":"us","remote":false,"hybrid":true},"typeOfEmployment":{"id":"permanent","label":"Full-time"}}
+]}

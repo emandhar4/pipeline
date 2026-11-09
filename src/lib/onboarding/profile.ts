@@ -138,3 +138,15 @@ export async function saveStep2(input: Step2): Promise<void> {
   const { id } = await getCurrentUser();
   await applyStep2(await createClient(), id, input);
 }
+
+/**
+ * Re-runs the matcher for the signed-in user (refresh_matches, as the user), so a new or
+ * changed profile shows matches without waiting for the nightly run. Throws on error;
+ * callers log and carry on, since the nightly run repairs a missed refresh.
+ */
+export async function refreshMyMatches(): Promise<void> {
+  const { id } = await getCurrentUser();
+  const client = await createClient();
+  const { error } = await client.rpc('refresh_matches', { p_user: id });
+  if (error) throw new Error(`refresh_matches failed: ${error.message}`);
+}
