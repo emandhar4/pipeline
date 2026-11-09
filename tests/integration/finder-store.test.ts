@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { randomBytes } from 'node:crypto'
+import { UNCHECKED } from '@/finder/resolve'
 import { createSupabaseStore, type Run } from '@/finder/store'
 import type { NormalizedPosting, ScopeResult } from '@/finder/types'
 import { adminClient } from './helpers'
@@ -192,6 +193,23 @@ describe('finder store', () => {
     expect(row.data).toEqual({ ats: 'unknown', ats_token: null, ats_meta: {}, coverage: 'unknown', coverage_reason: null, resolved_at: null })
     const item = await admin.from('finder_run_items').select('status, error').eq('run_id', run.id).eq('company_id', co.data!.id).single()
     expect(item.data).toEqual({ status: 'failed', error: 'HTTP 404' })
+  })
+
+  it('a transient resolve result keeps the company unknown and moves its updated_at forward', async () => {
+    const old = '2026-01-01T00:00:00+00:00'
+    const co = await admin
+      .from('companies')
+      .insert({ name: `Test Transient ${suffix}`, normalized_name: `test-transient-${suffix}`, updated_at: old })
+      .select('id, updated_at')
+      .single()
+    expect(co.error).toBeNull()
+    companyIds.push(co.data!.id)
+    expect(Date.parse(co.data!.updated_at)).toBe(Date.parse(old))
+
+    await store.saveResolution(co.data!.id, { notCovered: UNCHECKED })
+    const row = await admin.from('companies').select('coverage, coverage_reason, resolved_at, updated_at').eq('id', co.data!.id).single()
+    expect(row.data).toMatchObject({ coverage: 'unknown', coverage_reason: null, resolved_at: null })
+    expect(Date.parse(row.data!.updated_at)).toBeGreaterThan(Date.parse(old))
   })
 
   it('failRun marks a running run failed', async () => {

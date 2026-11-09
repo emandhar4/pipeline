@@ -285,8 +285,17 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
     },
 
     async saveResolution(id, r) {
-      if ('notCovered' in r && r.notCovered === UNCHECKED) return // transient: retried next run
       const now = new Date().toISOString()
+      if ('notCovered' in r && r.notCovered === UNCHECKED) {
+        // Transient: coverage stays unknown so it is retried, but companiesToResolve orders by
+        // updated_at, so touching it (the set_updated_at trigger also sets now()) sends it to the
+        // back of the queue instead of letting the same stuck companies fill every run's limit.
+        must(
+          await client.from('companies').update({ updated_at: now }).eq('id', id).eq('coverage', 'unknown'),
+          'touch unresolved company',
+        )
+        return
+      }
       const patch =
         'notCovered' in r
           ? { coverage: 'not_covered' as const, coverage_reason: r.notCovered, resolved_at: now }

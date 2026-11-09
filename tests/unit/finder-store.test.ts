@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { UNCHECKED } from '@/finder/resolve'
 import { createSupabaseStore, type Run } from '@/finder/store'
 import type { NormalizedPosting, ScopeResult } from '@/finder/types'
 import { fakeSupabase, type Tables } from './fake-supabase'
@@ -181,5 +182,39 @@ describe('store: a posting seen again by another source', () => {
 
     await store.savePostings(RUN, board([posting({ externalId: 'gh-1', level: 'experienced' })]), true)
     expect(db.postings[0].level).toBe('internship')
+  })
+})
+
+describe('store: resolver results', () => {
+  const UNKNOWN = {
+    id: 'co-9',
+    name: 'Blocked Corp',
+    ats: 'unknown',
+    ats_token: null,
+    ats_meta: {},
+    coverage: 'unknown',
+    coverage_reason: null,
+    resolved_at: null,
+    watchers: 0,
+    updated_at: '2026-11-01T00:00:00.000Z',
+  }
+
+  it('a transient result leaves coverage unknown but touches updated_at, moving the company to the back of the queue', async () => {
+    const db: Tables = { companies: [{ ...UNKNOWN }] }
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.saveResolution('co-9', { notCovered: UNCHECKED })
+
+    const { updated_at, ...rest } = db.companies[0]
+    const { updated_at: before, ...unchanged } = UNKNOWN
+    expect(rest).toEqual(unchanged)
+    expect(Date.parse(updated_at as string)).toBeGreaterThan(Date.parse(before))
+  })
+
+  it('a transient result does not touch a company that is no longer unknown', async () => {
+    const covered = { ...UNKNOWN, ats: 'lever', ats_token: 'blocked', coverage: 'covered' }
+    const db: Tables = { companies: [{ ...covered }] }
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.saveResolution('co-9', { notCovered: UNCHECKED })
+    expect(db.companies[0]).toEqual(covered)
   })
 })
