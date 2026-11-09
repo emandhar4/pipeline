@@ -103,8 +103,9 @@ test('a complete profile sees the one passing posting with its Apply link', asyn
   await expect(link).toHaveAttribute('href', `https://example.test/apply/${suffix}`);
   await expect(link).toHaveAttribute('target', '_blank');
   await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-  await expect(panel.getByText('Test Co, San Jose, CA')).toBeVisible();
-  await expect(panel.getByText('New', { exact: true })).toBeVisible();
+  const row = panel.locator('li').filter({ hasText: `Software Engineering Intern ${suffix}` });
+  await expect(row.getByText('Test Co, San Jose, CA')).toBeVisible();
+  await expect(row.getByText('New', { exact: true })).toBeVisible();
   await expect(panel.getByText(`Warehouse Associate ${suffix}`)).toHaveCount(0);
   await expect(panel.getByText('Finish your profile')).toHaveCount(0);
 });
