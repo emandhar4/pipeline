@@ -8,7 +8,7 @@ export type ResolveResult = Resolved | { notCovered: string }
 
 const NO_BOARD = 'No public job board found from the name. Add its careers page link.'
 const UNREADABLE = "That careers link uses a site Pipeline can't read yet."
-const UNCHECKED = 'Could not check its job board this run.'
+export const UNCHECKED = 'Could not check its job board this run.'
 
 const PROBE_ORDER: AtsKind[] = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'recruitee', 'workable']
 
