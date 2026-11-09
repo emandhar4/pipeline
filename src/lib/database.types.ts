@@ -49,6 +49,7 @@ export type Database = {
           id: string
           input: Json
           kind: Database["public"]["Enums"]["ai_job_kind"]
+          posting_id: string | null
           result: Json | null
           status: Database["public"]["Enums"]["ai_job_status"]
           updated_at: string
@@ -63,6 +64,7 @@ export type Database = {
           id?: string
           input?: Json
           kind: Database["public"]["Enums"]["ai_job_kind"]
+          posting_id?: string | null
           result?: Json | null
           status?: Database["public"]["Enums"]["ai_job_status"]
           updated_at?: string
@@ -77,12 +79,21 @@ export type Database = {
           id?: string
           input?: Json
           kind?: Database["public"]["Enums"]["ai_job_kind"]
+          posting_id?: string | null
           result?: Json | null
           status?: Database["public"]["Enums"]["ai_job_status"]
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_jobs_posting_id_fkey"
+            columns: ["posting_id"]
+            isOneToOne: false
+            referencedRelation: "postings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       application_events: {
         Row: {
@@ -205,6 +216,7 @@ export type Database = {
           pay_cents: number | null
           pay_period: string | null
           role: string | null
+          role_field_slugs: string[]
           rules: Json | null
           updated_at: string
           user_id: string
@@ -216,6 +228,7 @@ export type Database = {
           pay_cents?: number | null
           pay_period?: string | null
           role?: string | null
+          role_field_slugs?: string[]
           rules?: Json | null
           updated_at?: string
           user_id?: string
@@ -227,6 +240,7 @@ export type Database = {
           pay_cents?: number | null
           pay_period?: string | null
           role?: string | null
+          role_field_slugs?: string[]
           rules?: Json | null
           updated_at?: string
           user_id?: string
@@ -654,6 +668,7 @@ export type Database = {
           remote: Database["public"]["Enums"]["remote_kind"]
           season: string | null
           snippet: string | null
+          sponsorship: string | null
           states: string[]
           status: Database["public"]["Enums"]["posting_status"]
           terms: string[]
@@ -681,6 +696,7 @@ export type Database = {
           remote?: Database["public"]["Enums"]["remote_kind"]
           season?: string | null
           snippet?: string | null
+          sponsorship?: string | null
           states?: string[]
           status?: Database["public"]["Enums"]["posting_status"]
           terms?: string[]
@@ -708,6 +724,7 @@ export type Database = {
           remote?: Database["public"]["Enums"]["remote_kind"]
           season?: string | null
           snippet?: string | null
+          sponsorship?: string | null
           states?: string[]
           status?: Database["public"]["Enums"]["posting_status"]
           terms?: string[]
@@ -1105,10 +1122,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_ai_jobs: {
+        Args: { p_limit: number; p_worker: string }
+        Returns: {
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          input: Json
+          kind: Database["public"]["Enums"]["ai_job_kind"]
+          posting_id: string | null
+          result: Json | null
+          status: Database["public"]["Enums"]["ai_job_status"]
+          updated_at: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ai_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       count_users_without_profile: { Args: never; Returns: number }
       finish_finder_run: { Args: { p_run: string }; Returns: Json }
       hook_require_invite: { Args: { event: Json }; Returns: Json }
       normalize_company: { Args: { p_name: string }; Returns: string }
+      pay_year_cents: {
+        Args: { cents: number; period: string }
+        Returns: number
+      }
       prune_finder_data: { Args: { p_key_prefix?: string }; Returns: Json }
       refresh_matches: { Args: { p_user: string }; Returns: string }
       search_majors: {
