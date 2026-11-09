@@ -320,6 +320,7 @@ export function StepTwoForm({
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-1 text-sm font-medium">Industries</legend>
         <p className="hint">Optional. Name industries you want, and any you would rather skip.</p>
+        <p className="hint">Industry is known only for large public companies for now.</p>
         <div className="grid gap-6 sm:grid-cols-2">
           {(['prefer', 'avoid'] as const).map((pref) => {
             const id = `industry-${pref}`;

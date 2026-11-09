@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { coverageText, type CoverageStatus } from '@/lib/companies/ats-labels';
 import type { Database } from '@/lib/database.types';
+import { setCompanyRelation } from './bar-actions';
 import { addCompany, removeCompany, type CompanyFormState } from './company-actions';
 
 export type WatchedCompany = {
@@ -11,7 +12,15 @@ export type WatchedCompany = {
   ats: Database['public']['Enums']['ats_kind'];
   coverage: CoverageStatus;
   coverage_reason: string | null;
+  relation: Database['public']['Enums']['company_relation'];
 };
+
+const RELATIONS: { value: WatchedCompany['relation']; label: string }[] = [
+  { value: 'target', label: 'Watching' },
+  { value: 'dream', label: 'Dream company' },
+  { value: 'capped', label: 'Capped me' },
+  { value: 'rejected', label: 'Rejected me' },
+];
 
 export function CompaniesSection({ companies, loadFailed = false }: { companies: WatchedCompany[]; loadFailed?: boolean }) {
   const [state, action, pending] = useActionState<CompanyFormState, FormData>(addCompany, {});
@@ -68,21 +77,43 @@ export function CompaniesSection({ companies, loadFailed = false }: { companies:
       {loadFailed ? (
         <p role="alert" className="field-error">Could not load your companies. Reload the page to try again.</p>
       ) : companies.length > 0 ? (
+        <>
         <ul className="divide-y divide-line border-y border-line">
           {companies.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-3 py-3">
+            <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{c.name}</p>
                 <p className="text-sm text-muted">{coverageText(c)}</p>
               </div>
-              <form action={removeCompany.bind(null, c.id)}>
-                <button type="submit" className="btn-secondary btn-small" aria-label={`Remove ${c.name}`}>
-                  Remove
-                </button>
-              </form>
+              <div className="flex items-center gap-2">
+                <form
+                  action={(fd) => setCompanyRelation(c.id, String(fd.get('relation') ?? ''))}
+                  className="flex items-center gap-2"
+                >
+                  <select
+                    name="relation"
+                    defaultValue={c.relation}
+                    aria-label={`Relation to ${c.name}`}
+                    className="field w-auto py-1 text-sm"
+                    onChange={(e) => e.currentTarget.form?.requestSubmit()}
+                  >
+                    {RELATIONS.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                  <button type="submit" className="btn-secondary btn-small">Set</button>
+                </form>
+                <form action={removeCompany.bind(null, c.id)}>
+                  <button type="submit" className="btn-secondary btn-small" aria-label={`Remove ${c.name}`}>
+                    Remove
+                  </button>
+                </form>
+              </div>
             </li>
           ))}
         </ul>
+        <p className="hint">Rejected hides this company&apos;s postings. Capped ranks them lower.</p>
+        </>
       ) : (
         <p className="text-sm text-muted">No companies yet.</p>
       )}

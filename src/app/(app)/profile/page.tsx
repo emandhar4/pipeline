@@ -15,6 +15,7 @@ import { ResumeStep } from '../onboarding/resume-step';
 import { StepOneForm } from '../onboarding/step-one-form';
 import { StepTwoForm } from '../onboarding/step-two-form';
 import { createClient } from '@/lib/supabase/server';
+import { BarSection } from './bar-section';
 import { CompaniesSection, type WatchedCompany } from './companies-section';
 
 export const metadata: Metadata = { title: 'Profile · Pipeline' };
@@ -54,13 +55,19 @@ async function ProfileForms({ searchParams }: Pick<PageProps<'/profile'>, 'searc
   const supabase = await createClient();
   const watched = await supabase
     .from('user_companies')
-    .select('created_at, companies(id, name, ats, coverage, coverage_reason)')
+    .select('created_at, relation, companies(id, name, ats, coverage, coverage_reason)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (watched.error) console.error('[profile] read watched companies failed', { message: watched.error.message });
   const companies: WatchedCompany[] = (watched.data ?? []).flatMap((r) =>
-    r.companies ? [r.companies as WatchedCompany] : [],
+    r.companies ? [{ ...(r.companies as Omit<WatchedCompany, 'relation'>), relation: r.relation ?? 'target' }] : [],
   );
+  const barRow = await supabase
+    .from('bars')
+    .select('company, role, pay_cents, pay_period')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (barRow.error) console.error('[profile] read bar failed', { message: barRow.error.message });
 
   return (
     <>
@@ -107,6 +114,8 @@ async function ProfileForms({ searchParams }: Pick<PageProps<'/profile'>, 'searc
           hint={stepTwoHint(two, suggestions, categories)}
         />
       </section>
+
+      <BarSection bar={barRow.data ?? null} />
 
       <CompaniesSection companies={companies} loadFailed={!!watched.error} />
     </>
