@@ -138,3 +138,48 @@ describe('store: a board that returns HTTP 404', () => {
     expect(db.companies[0]).toEqual(COMPANY)
   })
 })
+
+describe('store: a posting seen again by another source', () => {
+  function board(postings: NormalizedPosting[]): ScopeResult {
+    return { scope: 'greenhouse:acme', source: 'greenhouse', companyId: 'co-1', status: 'ok', fetched: postings.length, complete: true, postings }
+  }
+
+  it('keeps the fields, terms and level Simplify found when a board sighting has poorer ones', async () => {
+    const db: Tables = {}
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.savePostings(RUN, simplify('intern', [posting({ externalId: 's-1' })]), false)
+    await store.savePostings(
+      RUN,
+      board([posting({ externalId: 'gh-1', title: 'Intern, Summer 2027', level: 'unknown', fieldSlugs: [], terms: [] })]),
+      true,
+    )
+
+    expect(db.postings).toHaveLength(1)
+    expect(db.postings[0]).toMatchObject({ level: 'internship', field_slugs: ['software-engineering'], terms: ['Summer 2027'] })
+    expect(db.posting_sources).toHaveLength(2)
+  })
+
+  it('unions fields and terms from both sources', async () => {
+    const db: Tables = {}
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.savePostings(RUN, simplify('intern', [posting({ externalId: 's-1' })]), false)
+    await store.savePostings(
+      RUN,
+      board([posting({ externalId: 'gh-1', fieldSlugs: ['data-science', 'software-engineering'], terms: ['Fall 2027'] })]),
+      true,
+    )
+    expect(db.postings[0].field_slugs).toEqual(['software-engineering', 'data-science'])
+    expect(db.postings[0].terms).toEqual(['Summer 2027', 'Fall 2027'])
+  })
+
+  it('replaces a stored unknown level with the new one, and keeps any other stored level', async () => {
+    const db: Tables = {}
+    const store = createSupabaseStore(fakeSupabase(db))
+    await store.savePostings(RUN, board([posting({ externalId: 'gh-1', level: 'unknown' })]), true)
+    await store.savePostings(RUN, simplify('intern', [posting({ externalId: 's-1', level: 'internship' })]), false)
+    expect(db.postings[0].level).toBe('internship')
+
+    await store.savePostings(RUN, board([posting({ externalId: 'gh-1', level: 'experienced' })]), true)
+    expect(db.postings[0].level).toBe('internship')
+  })
+})

@@ -42,6 +42,11 @@ function chunks<T>(xs: T[], n: number): T[][] {
   return out
 }
 
+/** Stored values first, then new ones, without duplicates. */
+function union(stored: string[] | null, added: string[]): string[] {
+  return [...new Set([...(stored ?? []), ...added])]
+}
+
 /** Throws on a query error, else returns the data (null for writes without `.select()`, which callers ignore). */
 function must<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
   if (res.error) throw new Error(`${what}: ${res.error.message}`)
@@ -60,7 +65,7 @@ async function allPages<T>(
   }
 }
 
-/** The posting columns derived from a normalized posting (refreshed on every sighting). */
+/** The posting columns derived from a normalized posting (refreshed on every sighting; terms, field_slugs and level are merged with stored values in upsertPostings). */
 function postingColumns(p: NormalizedPosting, key: string, lastSeen: string) {
   return {
     dedupe_key: key,
@@ -98,7 +103,10 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
     let inserted = 0
     for (const keys of chunks([...byKey.keys()], KEY_BATCH)) {
       const existing = must(
-        await client.from('postings').select('id, dedupe_key, status, company_id').in('dedupe_key', keys),
+        await client
+          .from('postings')
+          .select('id, dedupe_key, status, company_id, level, terms, field_slugs')
+          .in('dedupe_key', keys),
         'read postings',
       )
       const known = new Map(existing.map((e) => [e.dedupe_key, e]))
@@ -110,8 +118,12 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
         if (!e) {
           fresh.push({ ...postingColumns(p, key, lastSeen), company_id: r.companyId, first_seen: lastSeen, status: 'new' })
         } else {
+          // A posting's facts from every source add up: no sighting erases another's fields, terms or level.
           seenAgain.push({
             ...postingColumns(p, key, lastSeen),
+            terms: union(e.terms, p.terms),
+            field_slugs: union(e.field_slugs, p.fieldSlugs),
+            level: e.level === 'unknown' ? p.level : e.level,
             company_id: r.companyId ?? e.company_id,
             status: e.status === 'gone' ? 'seen' : e.status,
           })
