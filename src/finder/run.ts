@@ -174,14 +174,19 @@ export async function runFinder(deps: RunDeps, opts: RunOptions): Promise<RunSum
 
     const users = await store.userIdsToMatch()
     let errors = 0
+    let slowestMs = 0
+    const refreshStart = Date.now()
     for (const id of users) {
+      const userStart = Date.now()
       try {
         await store.refreshMatches(id)
       } catch {
         errors++ // the error may name the user; log the count only
       }
+      slowestMs = Math.max(slowestMs, Date.now() - userStart)
     }
-    log(`Matches refreshed for ${users.length - errors} of ${users.length} users${errors ? ` (${errors} errors)` : ''}.`)
+    const refreshMs = Date.now() - refreshStart
+    log(`Matches refreshed for ${users.length - errors} of ${users.length} users${errors ? ` (${errors} errors)` : ''} in ${refreshMs} ms (slowest user ${slowestMs} ms).`)
 
     await store.prune()
     log('Pruned old data.')
