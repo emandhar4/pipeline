@@ -12,7 +12,7 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgr
 - `npm run lint`
 - `npm run typecheck` (`next typegen && tsc --noEmit`)
 - `npm test` (Vitest: `tests/unit`, `tests/integration`)
-- `npm run test:e2e` (Playwright)
+- `npm run test:e2e` (Playwright). On this machine run it against a production build (`npm run build && npm run start`, then `npm run test:e2e`, which reuses the running server): the dev server is very slow here (about a minute to start, ~45 s per page).
 - CI (`.github/workflows/ci.yml`): lint, typecheck, unit tests, build and `node scripts/check-bundle-secrets.mjs` on every push (any branch) and PR to `main`; integration tests only on push to `main`.
 
 ## Constraints
