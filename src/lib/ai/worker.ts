@@ -44,7 +44,7 @@ export async function claimJobs(limit: number): Promise<ScoreFitJob[]> {
   const all = must(await db.rpc('claim_ai_jobs', { p_limit: take, p_worker: WORKER }), 'claim jobs') ?? [];
   // claim_ai_jobs can claim more rows than its limit (its `id in (select … limit … for update skip
   // locked)` may be re-run by the planner). Hand the extras straight back to the queue.
-  const claimed = all.slice(0, take);
+  const taken = all.slice(0, take);
   const extras = all.slice(take).map((j) => j.id);
   if (extras.length) {
     must(
@@ -55,6 +55,33 @@ export async function claimJobs(limit: number): Promise<ScoreFitJob[]> {
         .eq('status', 'claimed')
         .eq('claimed_by', WORKER),
       'release extra jobs',
+    );
+  }
+  if (!taken.length) return [];
+
+  // Stopgap: owners can insert their own queued jobs (RLS), so only hand out score_fit jobs of
+  // users in 'queue' mode. Anything else is closed as failed instead of leaving it claimed.
+  const modes = must(
+    await db.from('profiles').select('user_id, ai_mode').in('user_id', [...new Set(taken.map((j) => j.user_id))]),
+    'read ai modes',
+  ) ?? [];
+  const modeByUser = new Map(modes.map((m) => [m.user_id, m.ai_mode]));
+  const claimed = [];
+  const rejected = new Map<string, string[]>();
+  for (const j of taken) {
+    const reason =
+      j.kind !== 'score_fit' ? 'unsupported kind' : modeByUser.get(j.user_id) !== 'queue' ? 'ai_mode is not queue' : null;
+    if (reason) rejected.set(reason, [...(rejected.get(reason) ?? []), j.id]);
+    else claimed.push(j);
+  }
+  for (const [error, ids] of rejected) {
+    must(
+      await db
+        .from('ai_jobs')
+        .update({ status: 'failed', error, completed_at: new Date().toISOString() })
+        .in('id', ids)
+        .eq('status', 'claimed'),
+      'fail rejected jobs',
     );
   }
   if (!claimed.length) return [];

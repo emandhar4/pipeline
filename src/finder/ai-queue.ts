@@ -60,6 +60,7 @@ export async function enqueueScoreFit(db: Db, userId: string): Promise<number> {
         .eq('user_id', userId)
         .eq('passed_filter', true)
         .neq('state', 'hidden')
+        .neq('bar_verdict', 'does_not_beat')
         .is('ai_score', null)
         .neq('postings.status', 'gone')
         .order('base_score', { ascending: false, nullsFirst: false })

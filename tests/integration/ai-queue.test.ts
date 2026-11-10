@@ -87,6 +87,7 @@ describe('enqueueScoreFit', () => {
   let gone: string;
   let failing: string;
   let scored: string;
+  let worse: string;
 
   beforeAll(async () => {
     const { error: pe } = await admin
@@ -105,14 +106,16 @@ describe('enqueueScoreFit', () => {
     gone = await makePosting({ status: 'gone' });
     failing = await makePosting();
     scored = await makePosting();
+    worse = await makePosting();
     const rows = [
       ...ranked.map((id, i) => ({ posting_id: id, base_score: 100 - i, passed_filter: true })),
       { posting_id: hidden, base_score: 200, passed_filter: true, state: 'hidden' as const },
       { posting_id: gone, base_score: 199, passed_filter: true },
       { posting_id: failing, base_score: 198, passed_filter: false },
       { posting_id: scored, base_score: 197, passed_filter: true, ai_score: 6 },
+      { posting_id: worse, base_score: 196, passed_filter: true, bar_verdict: 'does_not_beat' as const },
       // One bulk insert sends every key for every row (missing ones as null), so spell out the defaults.
-    ].map((m) => ({ state: 'new' as const, ai_score: null as number | null, ...m, user_id: q.id }));
+    ].map((m) => ({ state: 'new' as const, ai_score: null as number | null, bar_verdict: 'no_bar' as Database['public']['Enums']['bar_verdict'], ...m, user_id: q.id }));
     const { error } = await admin.from('posting_matches').insert(rows);
     expect(error).toBeNull();
   });
@@ -123,12 +126,13 @@ describe('enqueueScoreFit', () => {
     expect(await jobsOf(q.id)).toHaveLength(0);
   });
 
-  it('puts in the top 15 only, skipping hidden, gone, failing and already-scored postings', async () => {
+  it('puts in the top 15 only, skipping hidden, gone, failing, already-scored and does-not-beat-the-bar postings', async () => {
     await setMode(q.id, 'queue');
     expect(await enqueueScoreFit(db, q.id)).toBe(15);
     const jobs = await jobsOf(q.id);
     expect(jobs.map((j) => j.posting_id).sort()).toEqual(ranked.slice(0, 15).sort());
     expect(jobs.every((j) => j.status === 'queued')).toBe(true);
+    expect(jobs.map((j) => j.posting_id)).not.toContain(worse);
   });
 
   it('keeps at most 15 queued or claimed jobs per user', async () => {
@@ -208,6 +212,35 @@ describe('claimJobs', () => {
     expect(u.error).toBeNull();
     const again = await claimJobs(10);
     expect(again.map((j) => j.id)).toEqual([stale.id]);
+  });
+
+  it("fails jobs of users whose ai_mode isn't queue, and unsupported kinds, without returning them", async (ctx) => {
+    if (!safe) ctx.skip('other queued or claimed ai_jobs exist');
+    // Release q's leftover claim so only the rows below can be claimed.
+    const rel = await admin.from('ai_jobs').update({ status: 'done' }).eq('user_id', q.id);
+    expect(rel.error).toBeNull();
+    await setMode(r.id, 'off');
+    const p1 = await makePosting();
+    const ins = await admin
+      .from('ai_jobs')
+      .insert({ user_id: r.id, kind: 'score_fit', posting_id: p1 })
+      .select('id')
+      .single();
+    expect(ins.error).toBeNull();
+    const odd = await admin
+      .from('ai_jobs')
+      .insert({ user_id: q.id, kind: 'tailor_resume', posting_id: p1 })
+      .select('id')
+      .single();
+    expect(odd.error).toBeNull();
+    expect(await claimJobs(10)).toEqual([]);
+    const [oddJob] = (await jobsOf(q.id)).filter((j) => j.id === odd.data!.id);
+    expect(oddJob.status).toBe('failed');
+    expect(oddJob.error).toBe('unsupported kind');
+    const [job] = (await jobsOf(r.id)).filter((j) => j.id === ins.data!.id);
+    expect(job.status).toBe('failed');
+    expect(job.error).toBe('ai_mode is not queue');
+    await setMode(r.id, 'queue');
   });
 });
 

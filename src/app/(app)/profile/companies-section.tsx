@@ -101,7 +101,9 @@ export function CompaniesSection({ companies, loadFailed = false }: { companies:
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
                   </select>
-                  <button type="submit" className="btn-secondary btn-small">Set</button>
+                  <button type="submit" className="btn-secondary btn-small" aria-label={`Set relation for ${c.name}`}>
+                    Set
+                  </button>
                 </form>
                 <form action={removeCompany.bind(null, c.id)}>
                   <button type="submit" className="btn-secondary btn-small" aria-label={`Remove ${c.name}`}>

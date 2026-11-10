@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { setMatchState } from './match-actions';
 
 export function MatchButtons({
@@ -13,9 +13,15 @@ export function MatchButtons({
   saved: boolean;
 }) {
   const [pending, start] = useTransition();
-  const run = (state: 'saved' | 'new' | 'hidden') => start(() => void setMatchState(matchId, state));
+  const [error, setError] = useState(false);
+  const run = (state: 'saved' | 'new' | 'hidden') =>
+    start(async () => {
+      setError(false);
+      const r = await setMatchState(matchId, state);
+      if (!r.ok) setError(true);
+    });
   return (
-    <span className="flex shrink-0 gap-1.5">
+    <span className="flex shrink-0 flex-wrap items-center gap-1.5">
       <button
         type="button"
         className="btn-secondary btn-small"
@@ -34,6 +40,11 @@ export function MatchButtons({
       >
         Hide
       </button>
+      {error ? (
+        <span role="alert" className="field-error">
+          Couldn&apos;t update this posting. Try again.
+        </span>
+      ) : null}
     </span>
   );
 }

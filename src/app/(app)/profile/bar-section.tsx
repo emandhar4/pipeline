@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { removeBar, saveBar, type BarFormState } from './bar-actions';
 
 export type SavedBar = {
@@ -18,7 +18,18 @@ export function payText(cents: number | null, period: string | null): string {
   return `$${n}/${period === 'hour' ? 'hr' : 'yr'}`;
 }
 
+/** Remounts the form (dropping its action state) whenever a saved bar is removed. */
 export function BarSection({ bar }: { bar: SavedBar | null }) {
+  const [generation, setGeneration] = useState(0);
+  const [hadBar, setHadBar] = useState(bar !== null);
+  if (hadBar !== (bar !== null)) {
+    setHadBar(bar !== null);
+    if (bar === null) setGeneration((g) => g + 1);
+  }
+  return <BarForm key={generation} bar={bar} />;
+}
+
+function BarForm({ bar }: { bar: SavedBar | null }) {
   const [state, action, pending] = useActionState<BarFormState, FormData>(saveBar, {});
   const company = state.values?.company ?? bar?.company ?? '';
   const role = state.values?.role ?? bar?.role ?? '';
