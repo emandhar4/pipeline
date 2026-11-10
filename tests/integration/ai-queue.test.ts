@@ -214,9 +214,9 @@ describe('claimJobs', () => {
     expect(again.map((j) => j.id)).toEqual([stale.id]);
   });
 
-  it("fails jobs of users whose ai_mode isn't queue, and unsupported kinds, without returning them", async (ctx) => {
+  it("leaves jobs of users whose ai_mode isn't queue, and unsupported kinds, queued and unclaimed", async (ctx) => {
     if (!safe) ctx.skip('other queued or claimed ai_jobs exist');
-    // Release q's leftover claim so only the rows below can be claimed.
+    // Release q's leftover claim so only the rows below could be claimed.
     const rel = await admin.from('ai_jobs').update({ status: 'done' }).eq('user_id', q.id);
     expect(rel.error).toBeNull();
     await setMode(r.id, 'off');
@@ -235,12 +235,24 @@ describe('claimJobs', () => {
     expect(odd.error).toBeNull();
     expect(await claimJobs(10)).toEqual([]);
     const [oddJob] = (await jobsOf(q.id)).filter((j) => j.id === odd.data!.id);
-    expect(oddJob.status).toBe('failed');
-    expect(oddJob.error).toBe('unsupported kind');
+    expect(oddJob.status).toBe('queued');
+    expect(oddJob.claimed_at).toBeNull();
     const [job] = (await jobsOf(r.id)).filter((j) => j.id === ins.data!.id);
-    expect(job.status).toBe('failed');
-    expect(job.error).toBe('ai_mode is not queue');
+    expect(job.status).toBe('queued');
+    expect(job.claimed_at).toBeNull();
+    // Turning the mode on makes the user's job claimable.
     await setMode(r.id, 'queue');
+    const got = await claimJobs(10);
+    expect(got.map((j) => j.id)).toEqual([ins.data!.id]);
+    const cleanup = await admin.from('ai_jobs').delete().in('id', [ins.data!.id, odd.data!.id]);
+    expect(cleanup.error).toBeNull();
+  });
+
+  it('signed-in users cannot call claim_ai_jobs or complete_ai_job', async () => {
+    const c = await r.client.rpc('claim_ai_jobs', { p_limit: 10, p_worker: 'x' });
+    expect(c.error).not.toBeNull();
+    const d = await r.client.rpc('complete_ai_job', { p_id: randomUUID(), p_error: 'x' });
+    expect(d.error).not.toBeNull();
   });
 });
 

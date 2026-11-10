@@ -1,6 +1,5 @@
 import 'server-only';
 import { timingSafeEqual } from 'node:crypto';
-import type { Json } from '@/lib/database.types';
 import { aiWorkerToken } from '@/lib/env.server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { MAX_CLAIM, type CompleteInput, type CompleteResult, type ScoreFitJob } from './types';
@@ -41,49 +40,8 @@ const WEIGHT_ORDER = { primary: 0, secondary: 1 } as const;
 export async function claimJobs(limit: number): Promise<ScoreFitJob[]> {
   const db = createAdminClient();
   const take = Math.max(0, Math.min(limit, MAX_CLAIM));
-  const all = must(await db.rpc('claim_ai_jobs', { p_limit: take, p_worker: WORKER }), 'claim jobs') ?? [];
-  // claim_ai_jobs can claim more rows than its limit (its `id in (select … limit … for update skip
-  // locked)` may be re-run by the planner). Hand the extras straight back to the queue.
-  const taken = all.slice(0, take);
-  const extras = all.slice(take).map((j) => j.id);
-  if (extras.length) {
-    must(
-      await db
-        .from('ai_jobs')
-        .update({ status: 'queued', claimed_by: null, claimed_at: null })
-        .in('id', extras)
-        .eq('status', 'claimed')
-        .eq('claimed_by', WORKER),
-      'release extra jobs',
-    );
-  }
-  if (!taken.length) return [];
-
-  // Stopgap: owners can insert their own queued jobs (RLS), so only hand out score_fit jobs of
-  // users in 'queue' mode. Anything else is closed as failed instead of leaving it claimed.
-  const modes = must(
-    await db.from('profiles').select('user_id, ai_mode').in('user_id', [...new Set(taken.map((j) => j.user_id))]),
-    'read ai modes',
-  ) ?? [];
-  const modeByUser = new Map(modes.map((m) => [m.user_id, m.ai_mode]));
-  const claimed = [];
-  const rejected = new Map<string, string[]>();
-  for (const j of taken) {
-    const reason =
-      j.kind !== 'score_fit' ? 'unsupported kind' : modeByUser.get(j.user_id) !== 'queue' ? 'ai_mode is not queue' : null;
-    if (reason) rejected.set(reason, [...(rejected.get(reason) ?? []), j.id]);
-    else claimed.push(j);
-  }
-  for (const [error, ids] of rejected) {
-    must(
-      await db
-        .from('ai_jobs')
-        .update({ status: 'failed', error, completed_at: new Date().toISOString() })
-        .in('id', ids)
-        .eq('status', 'claimed'),
-      'fail rejected jobs',
-    );
-  }
+  // claim_ai_jobs hands out only score_fit jobs of users in 'queue' mode, at most `take` of them.
+  const claimed = must(await db.rpc('claim_ai_jobs', { p_limit: take, p_worker: WORKER }), 'claim jobs') ?? [];
   if (!claimed.length) return [];
 
   const postingIds = [...new Set(claimed.map((j) => j.posting_id).filter((id): id is string => id !== null))];
@@ -162,62 +120,13 @@ export async function claimJobs(limit: number): Promise<ScoreFitJob[]> {
  */
 export async function completeJob(input: CompleteInput): Promise<CompleteResult> {
   const db = createAdminClient();
-  const job = must(
-    await db.from('ai_jobs').select('id, user_id, posting_id, status').eq('id', input.id).maybeSingle(),
-    'read job',
-  );
-  if (!job) return 'not_found';
-  if (job.status !== 'claimed') return 'not_claimed';
-  const now = new Date().toISOString();
-
-  if ('score' in input) {
-    if (job.posting_id) {
-      const match = must(
-        await db
-          .from('posting_matches')
-          .select('id, reasons')
-          .eq('user_id', job.user_id)
-          .eq('posting_id', job.posting_id)
-          .maybeSingle(),
-        'read match',
-      );
-      if (match) {
-        const reasons =
-          match.reasons && typeof match.reasons === 'object' && !Array.isArray(match.reasons) ? match.reasons : {};
-        must(
-          await db
-            .from('posting_matches')
-            .update({ ai_score: input.score, reasons: { ...reasons, ai_reason: input.reason } })
-            .eq('id', match.id),
-          'write match',
-        );
-      }
-    }
-    const done = must(
-      await db
-        .from('ai_jobs')
-        .update({
-          status: 'done',
-          result: { score: input.score, reason: input.reason } satisfies Json,
-          error: null,
-          completed_at: now,
-        })
-        .eq('id', job.id)
-        .eq('status', 'claimed')
-        .select('id'),
-      'complete job',
-    ) ?? [];
-    return done.length ? 'ok' : 'not_claimed';
-  }
-
-  const failed = must(
-    await db
-      .from('ai_jobs')
-      .update({ status: 'failed', error: input.error, completed_at: now })
-      .eq('id', job.id)
-      .eq('status', 'claimed')
-      .select('id'),
-    'fail job',
-  ) ?? [];
-  return failed.length ? 'ok' : 'not_claimed';
+  // complete_ai_job moves the job only while it is claimed and merges ai_reason into the match's
+  // reasons in the same transaction.
+  const args =
+    'score' in input
+      ? { p_id: input.id, p_score: input.score, p_reason: input.reason }
+      : { p_id: input.id, p_error: input.error };
+  const result = must(await db.rpc('complete_ai_job', args), 'complete job');
+  if (result === 'ok' || result === 'not_found' || result === 'not_claimed') return result;
+  throw new Error(`complete job: unexpected result ${String(result)}`);
 }

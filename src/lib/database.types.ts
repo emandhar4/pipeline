@@ -1146,6 +1146,15 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      complete_ai_job: {
+        Args: {
+          p_error?: string
+          p_id: string
+          p_reason?: string
+          p_score?: number
+        }
+        Returns: string
+      }
       count_users_without_profile: { Args: never; Returns: number }
       finish_finder_run: { Args: { p_run: string }; Returns: Json }
       hook_require_invite: { Args: { event: Json }; Returns: Json }

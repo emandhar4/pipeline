@@ -274,11 +274,11 @@ The spec's known risk, tested before anything depended on it. A one-off routine'
 
 - Branch `phase-4-scoring` was created in the shared checkout rather than a worktree (the previous branch was merged and clean; a worktree needs a fresh `npm ci` in the iCloud folder).
 - The guard test that keeps `src/lib/**` from importing the finder was narrowed to allow `src/lib/scoring` to import the finder's pure `classify/` modules only. Classify purity is convention only.
-- `claim_ai_jobs` over-claims, and the app-side cap requeues the extras instead of adding a migration now (see Open items).
+- `claim_ai_jobs` over-claimed; fixed by migration `20261110000100_ai_queue_hardening` (see below).
 
 ### Open items
 
-- **`claim_ai_jobs` over-claims.** Postgres may re-run its `id in (select ... limit ... for update skip locked)` subquery, so it can claim more rows than the limit. `claimJobs` keeps the first `limit` and puts the rest straight back to `queued`, so extra rows are briefly `claimed` and which ones are kept is arbitrary. Proposed fix (needs a migration and the user's OK): claim through a materialized CTE, and write `reasons` with `jsonb ||` so a complete cannot race `refresh_matches`' read-modify-write.
+- **AI queue hardening (2026-11-10, migration `20261110000100_ai_queue_hardening`, applied with the user's OK).** `claim_ai_jobs` picks through a materialized CTE (the limit holds) and hands out only `score_fit` jobs of users whose `ai_mode` is `queue`; other jobs stay `queued` untouched (owners can insert their own jobs through RLS, so the gate lives at claim time). New `complete_ai_job(p_id, p_score, p_reason, p_error)` (service role only) moves a job only while it is `claimed` and merges `ai_reason` into the match's `reasons` with `||` in the same transaction. `src/lib/ai/worker.ts` calls both; its app-side stopgaps are gone.
 - **Complete vs race.** `completeJob` writes the match before the status-guarded job update, and does not check `claimed_by`/`claimed_at`, so a racing or stale complete can write a score.
 - **Industry rule false positives:** `Healthcare` vs `Health Care` misses; `Gas` matches `Gaming`, `Store` matches `Storage`. A fix is a new migration.
 - **Remote matching is still US-only:** an `either`/`remote_only` user with non-US `work_countries` misses e.g. "Remote - UK".
