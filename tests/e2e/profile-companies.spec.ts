@@ -1,10 +1,14 @@
 import { expect, test } from '@playwright/test';
+import { randomBytes } from 'node:crypto';
 import { adminClient } from '../integration/helpers';
 import { markOnboarded, signIn, userPool, type TestUser } from './helpers';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
 const pool = userPool();
+const suffix = randomBytes(4).toString('hex');
+const EXAMPLE_CO = `Test- Example Co ${suffix}`;
+const OTHER_CO = `Test- Other Co ${suffix}`;
 let user: TestUser;
 
 test.beforeAll(async () => {
@@ -29,7 +33,7 @@ test.afterAll(async () => {
     await pool.cleanup();
   } finally {
     // Names are 'Test- …' so the shared rows never touch real companies.
-    const { error } = await adminClient().from('companies').delete().like('name', 'Test- %');
+    const { error } = await adminClient().from('companies').delete().in('name', [EXAMPLE_CO, OTHER_CO]);
     if (error) throw new Error(`company cleanup failed: ${error.message}`);
   }
 });
@@ -40,22 +44,22 @@ test('add by name, reject a bad link, remove', async ({ page }) => {
   const section = page.getByRole('region', { name: 'Companies to watch' });
   await expect(section).toBeVisible();
 
-  await section.getByLabel('Company name').fill('Test- Example Co');
+  await section.getByLabel('Company name').fill(EXAMPLE_CO);
   await section.getByRole('button', { name: 'Add company' }).click();
-  const item = section.getByRole('listitem').filter({ hasText: 'Test- Example Co' });
+  const item = section.getByRole('listitem').filter({ hasText: EXAMPLE_CO });
   await expect(item).toContainText('Checking in the next run');
 
-  await section.getByLabel('Company name').fill('Test- Other Co');
+  await section.getByLabel('Company name').fill(OTHER_CO);
   await section.getByLabel(/Careers page link/).fill('javascript:x');
   await section.getByRole('button', { name: 'Add company' }).click();
   await expect(
     section.getByText("That link isn't a careers page Pipeline can read. Leave it blank and we'll search by name."),
   ).toBeVisible();
-  await expect(section.getByRole('listitem').filter({ hasText: 'Test- Other Co' })).toHaveCount(0);
+  await expect(section.getByRole('listitem').filter({ hasText: OTHER_CO })).toHaveCount(0);
   // The failed attempt keeps what was typed.
-  await expect(section.getByLabel('Company name')).toHaveValue('Test- Other Co');
+  await expect(section.getByLabel('Company name')).toHaveValue(OTHER_CO);
   await expect(section.getByLabel(/Careers page link/)).toHaveValue('javascript:x');
 
-  await item.getByRole('button', { name: 'Remove Test- Example Co' }).click();
-  await expect(section.getByText('Test- Example Co')).toHaveCount(0);
+  await item.getByRole('button', { name: `Remove ${EXAMPLE_CO}` }).click();
+  await expect(section.getByText(EXAMPLE_CO)).toHaveCount(0);
 });

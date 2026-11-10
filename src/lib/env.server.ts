@@ -13,3 +13,20 @@ export function serverEnv(): ServerEnv {
   if (!result.success) throw new Error(formatEnvError(result.error));
   return { ...publicEnv, ...result.data };
 }
+
+const aiWorkerTokenSchema = z.string().min(32);
+
+/**
+ * The AI worker routes' bearer token (optional, at least 32 characters). Returns null when it is
+ * unset, or when it is too short (logged, never printed): either way the worker routes are off.
+ * Read per call, not cached, so a missing token is never baked in.
+ */
+export function aiWorkerToken(): string | null {
+  const raw = process.env.AI_WORKER_TOKEN;
+  if (!raw) return null;
+  if (!aiWorkerTokenSchema.safeParse(raw).success) {
+    console.error('[env] AI_WORKER_TOKEN is shorter than 32 characters; the AI worker routes are off.');
+    return null;
+  }
+  return raw;
+}

@@ -62,6 +62,23 @@ describe('simplify adapter', () => {
     expect(byId['5'].level).toBe('internship') // the Simplify kind hint outranks the experienced-title words
   })
 
+  it('maps the sponsorship field, ignoring case, and treats anything else or missing as null', async () => {
+    const row = (id: string, extra: Record<string, unknown>) => ({ id, company_name: 'Sample Co', title: 'Analyst Intern', locations: ['Dallas, TX'], url: 'https://careers.example.test/1', date_posted: 1793318400, active: true, is_visible: true, category: 'Software', ...extra })
+    const r = await fetchSimplify(
+      fakeHttp(() =>
+        ok([
+          row('a', { sponsorship: 'Does Not Offer Sponsorship' }),
+          row('b', { sponsorship: 'U.S. CITIZENSHIP IS REQUIRED' }),
+          row('c', { sponsorship: 'offers sponsorship' }),
+          row('d', { sponsorship: 'Other' }),
+          row('e', {}),
+        ]),
+      ).http,
+      'intern',
+    )
+    expect(r.postings.map((p) => p.sponsorship)).toEqual(['none', 'citizens_only', 'offers', null, null])
+  })
+
   it('uses the new-grad repo and level', async () => {
     const { http, calls } = fakeHttp(() => ok([{ id: 'x1', company_name: 'Sample Co', title: 'Analyst', locations: ['Dallas, TX'], url: 'https://careers.example.test/1', date_posted: 1793318400, active: true, is_visible: true, category: 'Software' }]))
     const r = await fetchSimplify(http, 'newgrad')

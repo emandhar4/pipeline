@@ -86,6 +86,11 @@ function fakeStore(over: Partial<Store> = {}) {
     refreshMatches: async (id) => {
       calls.push(`refreshMatches:${id}`)
     },
+    aiQueueUserIds: async () => [],
+    enqueueScoreFit: async (id) => {
+      calls.push(`enqueueScoreFit:${id}`)
+      return 0
+    },
     prune: async () => {
       calls.push('prune')
     },
@@ -94,7 +99,7 @@ function fakeStore(over: Partial<Store> = {}) {
   return { store, calls }
 }
 
-const WRITES = ['startRun', 'failRun', 'saveResolution', 'savePostings', 'recordItem', 'finishRun', 'refreshMatches', 'prune']
+const WRITES = ['startRun', 'failRun', 'saveResolution', 'savePostings', 'recordItem', 'finishRun', 'refreshMatches', 'enqueueScoreFit', 'prune']
 
 describe('runFinder', () => {
   it('a failed scope is reported, not zero', async () => {
@@ -120,6 +125,26 @@ describe('runFinder', () => {
     expect(refresh).toBeGreaterThan(finish)
     expect(calls.filter((c) => c.startsWith('refreshMatches'))).toHaveLength(2)
     expect(calls.findIndex((c) => c.startsWith('recordItem'))).toBeLessThan(finish)
+  })
+
+  it('enqueues AI jobs after refresh, only for queue users, and logs counts only', async () => {
+    const { store, calls } = fakeStore({
+      aiQueueUserIds: async () => ['u-222', 'u-333'],
+      enqueueScoreFit: async (id) => {
+        if (id === 'u-333') throw new Error('boom for u-333')
+        calls.push(`enqueueScoreFit:${id}`)
+        return 4
+      },
+    })
+    const lines: string[] = []
+    await runFinder({ http: fakeHttp(okHandler), store, log: (l) => lines.push(l) }, { trigger: 'test' })
+    const lastRefresh = calls.findLastIndex((c) => c.startsWith('refreshMatches'))
+    const enqueue = calls.indexOf('enqueueScoreFit:u-222')
+    expect(enqueue).toBeGreaterThan(lastRefresh)
+    expect(calls.filter((c) => c.startsWith('enqueueScoreFit'))).toEqual(['enqueueScoreFit:u-222'])
+    expect(calls.at(-1)).toBe('prune')
+    expect(lines).toContain('AI queue: 4 score_fit jobs queued for 1 of 2 users (1 errors).')
+    expect(lines.join('\n')).not.toMatch(/u-\d{3}/)
   })
 
   it('prune runs last', async () => {
@@ -219,7 +244,10 @@ describe('src/app never imports src/finder', () => {
     for (const f of [...files('src/app'), ...files('src/lib')]) {
       const text = readFileSync(f, 'utf8')
       for (const m of text.matchAll(importRe)) {
-        if (/(^|[/@])finder(\/|$)/.test(m[1])) offenders.push(`${f}: ${m[1]}`)
+        if (!/(^|[/@])finder(\/|$)/.test(m[1])) continue
+        // Scoring may reuse the finder's pure classifiers (Phase 4 constraint); nothing else may.
+        if (f.startsWith('src/lib/scoring/') && /(^|[/@])finder\/classify\//.test(m[1])) continue
+        offenders.push(`${f}: ${m[1]}`)
       }
     }
     expect(offenders).toEqual([])
@@ -246,6 +274,7 @@ describe('keep and run item rules', () => {
     level,
     fieldSlugs: [],
     active,
+    sponsorship: null,
   })
   const scope = (over: Partial<ScopeResult>): ScopeResult => ({
     scope: 'smartrecruiters:acme',

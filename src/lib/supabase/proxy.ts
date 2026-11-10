@@ -2,12 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { publicEnv } from '@/lib/env';
 import type { Database } from '@/lib/database.types';
+import { isPublic } from '@/lib/public-paths';
 import { safeNext } from '@/lib/safe-next';
-
-/** Paths reachable without a session. Everything else requires sign-in (default deny). */
-function isPublic(pathname: string): boolean {
-  return pathname === '/login' || pathname.startsWith('/auth/');
-}
 
 /** Returns a redirect that keeps any refreshed auth cookies and no-cache headers. */
 function redirectWith(url: URL, from: NextResponse): NextResponse {

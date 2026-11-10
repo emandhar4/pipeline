@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '../lib/database.types'
+import { enqueueScoreFit } from './ai-queue'
 import { dedupeKey } from './classify'
 import { boardNotFound, keptPostings, runItemRow, stampFor, type SaveCounts } from './keep'
 import { UNCHECKED, type ResolveResult } from './resolve'
@@ -23,6 +24,10 @@ export type Store = {
   finishRun(runId: string): Promise<Totals>
   userIdsToMatch(): Promise<string[]>
   refreshMatches(userId: string): Promise<void>
+  /** Users whose profiles.ai_mode is 'queue'. */
+  aiQueueUserIds(): Promise<string[]>
+  /** Queues score_fit jobs for one user (see ai-queue.ts); returns how many were added. */
+  enqueueScoreFit(userId: string): Promise<number>
   prune(): Promise<void>
 }
 
@@ -84,6 +89,7 @@ function postingColumns(p: NormalizedPosting, key: string, lastSeen: string) {
     terms: p.terms,
     level: p.level,
     field_slugs: p.fieldSlugs,
+    sponsorship: p.sponsorship,
     last_seen: lastSeen,
   } satisfies PostingInsert
 }
@@ -105,7 +111,7 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
       const existing = must(
         await client
           .from('postings')
-          .select('id, dedupe_key, status, company_id, level, terms, field_slugs')
+          .select('id, dedupe_key, status, company_id, level, terms, field_slugs, sponsorship')
           .in('dedupe_key', keys),
         'read postings',
       )
@@ -124,6 +130,7 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
             terms: union(e.terms, p.terms),
             field_slugs: union(e.field_slugs, p.fieldSlugs),
             level: e.level === 'unknown' ? p.level : e.level,
+            sponsorship: p.sponsorship ?? e.sponsorship,
             company_id: r.companyId ?? e.company_id,
             status: e.status === 'gone' ? 'seen' : e.status,
           })
@@ -409,6 +416,17 @@ export function createSupabaseStore(client: Db, opts: { keyPrefix?: string } = {
       // refresh_matches arrives with Task 8's migration; until then the generated types lack it.
       const untyped = client as unknown as SupabaseClient
       must(await untyped.rpc('refresh_matches', { p_user: userId }), 'refresh matches')
+    },
+
+    async aiQueueUserIds() {
+      const rows = await allPages('read ai queue users', (from, to) =>
+        client.from('profiles').select('user_id').eq('ai_mode', 'queue').order('user_id').range(from, to),
+      )
+      return rows.map((r) => r.user_id)
+    },
+
+    enqueueScoreFit(userId) {
+      return enqueueScoreFit(client, userId)
     },
 
     async prune() {

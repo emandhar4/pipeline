@@ -92,7 +92,7 @@ Each entry: decision, why, who decided. Source: design spec section 2.
 - **Who decided:** Claude's call, per controller ruling
 
 ### Auth sessions under Cache Components
-- **Decision:** Keep `cacheComponents` and `partialPrefetching` on. Session reads sit behind `<Suspense>`; `getCurrentUser()` (`src/lib/auth.ts`) calls `connection()` before `getClaims()` because JWT verification compares expiry to the clock, which Cache Components flags during runtime prefetch. The proxy (`src/proxy.ts`) refreshes the session with `getClaims()` and is default-deny: everything except `/login` and `/auth/*` redirects signed-out users to `/login?next=<path>`. The `(app)` layout re-verifies with `getClaims()` (never `getSession()`).
+- **Decision:** Keep `cacheComponents` and `partialPrefetching` on. Session reads sit behind `<Suspense>`; `getCurrentUser()` (`src/lib/auth.ts`) calls `connection()` before `getClaims()` because JWT verification compares expiry to the clock, which Cache Components flags during runtime prefetch. The proxy (`src/proxy.ts`) refreshes the session with `getClaims()` and is default-deny: everything except `/login`, `/auth/*` and the token-protected `/api/ai-jobs/*` worker routes (Phase 4) redirects signed-out users to `/login?next=<path>`. The `(app)` layout re-verifies with `getClaims()` (never `getSession()`).
 - **Why:** Follows the Next 16 "Authentication with Cache Components" guide and the Supabase SSR example without disabling caching; default-deny means new routes are protected automatically.
 - **Who decided:** Claude (Task 5)
 
@@ -207,6 +207,84 @@ Watchlist seed: MIT-licensed `Gsync/jobsync` company directories (~5,400 boards)
 
 - Remote matching is US-only: an `either`/`remote_only` user with non-US `work_countries` misses e.g. "Remote - UK"; fixing it needs a migration.
 - A permanently bot-blocked (403) slug host keeps a company `unknown` forever (retried each time it reaches the front of the queue), so it never shows "add a careers link". Giving up after N tries needs a counter column (a migration).
+
+## Phase 4: scoring, the bar and the AI queue (built 2026-11-09)
+
+Data at design time (hosted DB): 12,555 live postings, 974 with pay, 1 with a description snippet, no company industry. Scoring therefore leans on title, fields, company, pay when present and dates. Keyword match against the experience bank, and anything else that needs descriptions, waits for Phase 6 and the AI queue.
+
+### Filter (hard)
+
+Adds four reasons to Phase 3's `level`, `season`, `place`, `field`:
+
+- `industry`: the company's industry matches one of the user's `avoid` industries.
+- `company`: the user marked the company `rejected`.
+- `pay`: pay is known and the best pay (`pay_max`, else `pay_min`) is below the user's floor, both converted to yearly (hour × 2080; zero counts as unknown). Unknown pay passes and is flagged `confirm_pay`.
+- `work_auth`: the posting states sponsorship (Simplify's `sponsorship`, the only source with it). A user who `needs_sponsorship` fails `none` and `citizens_only`; a `no_sponsorship_needed` user fails `citizens_only`. Unknown passes.
+
+### Score (0-100, soft; each part is a reason)
+
+| Part | Points |
+|---|---|
+| Best matching field primary / secondary | 40 / 15 |
+| Freshness: newer of `posted_date` and `first_seen` is ≤3 / ≤7 / ≤14 / ≤30 days old | 20 / 15 / 10 / 5 |
+| Dream company | 20 |
+| Preferred industry | 10 |
+| Pay known and at or above the floor (or no floor set) | 5 |
+| Company marked `capped` (down-ranked, not hidden) | -25 |
+
+Clamped to 0-100. `target` relations add nothing (watching is about coverage). Implemented in SQL (`refresh_matches`); `src/lib/scoring/` only explains and displays the stored reasons.
+
+### Industry and brand
+
+- `companies.industry` is filled for S&P 500 companies from the pinned `constituents.csv` as `'<GICS Sector> / <GICS Sub-Industry>'` (503 rows). Other companies stay null: no bonus, no exclusion. Step two shows "Industry is known only for large public companies for now."
+- **Label rule as implemented:** ignoring case, the user's label with a trailing `e`, `s` or `es` dropped (stem at least 2 characters) must begin a word in the company's industry string. The design's own example needs this: `Finance` matches `Financials / ...`. `Art` matches nothing in `Industrials`.
+- **Known false results:** misses `Healthcare` vs `Health Care`; over-matches short stems (`Gas` matches `Gaming`, `Store` matches `Storage`). See Open items.
+- **Brand tiers:** 2 = a dream company; 1 = on the S&P 500 list; 0 = anything else, including unknown names. `companies.is_fortune500` is set for S&P rows and **means "on the S&P 500 list"** (there is no open Fortune 500 list).
+- **Hourly cap:** hourly pay above $10,000/hr is clamped before × 2080 (posting, floor and bar), so a mislabelled posting cannot overflow `int` and abort the refresh for every user. Absurd hourly values compare as $10k/hr. Current data tops out at $74/hr.
+
+### The bar (one per user, optional)
+
+- Compare the posting with the offer on three things. **Function:** best field weight of the posting vs the offer role's (its stored `role_field_slugs`, matched with the same rules as postings); primary beats secondary beats no match. **Pay:** better only when the posting's yearly pay is at least 10% above the offer's, worse when below; unknown on either side means no comparison. **Brand:** tier comparison.
+- **"Clearly beats"** = better on at least one and worse on none. Verdict `beats` or `does_not_beat`; no bar gives `no_bar`.
+- **Card line:** `Beats your offer: <better parts>.` or `Doesn't beat your offer: <worse parts, or "no clear edge">.` Parts: `better pay (+18%)`, `stronger brand`, `closer to your fields` and their opposites `lower pay`, `weaker brand`, `further from your fields`.
+
+### Panel "New postings worth it"
+
+Passing, not hidden, not gone, `bar_verdict <> 'does_not_beat'`, by `base_score` desc then newest posting first, top 20. Each card: title (apply link), company, location; score badge ("Fit score out of 100"); reasons line; bar line when a bar exists; `New`, `confirm pay`, and `AI fit <n>/10: <reason>` when present; Save and Hide. Saved shows `Saved` and a second press un-saves; hidden cards vanish. Save/Hide never overwrite an `applied` match.
+
+- Under the list, when a bar exists and some passing postings do not beat it: "<n> more matching postings don't beat your offer." (singular for 1).
+- **All-below-bar copy (ruling):** when every passing posting is below the bar, the empty state reads "None of your matching postings beat your offer yet." plus the count line. The brief fixed no copy for this case.
+
+### AI queue, stage 1
+
+- **Who gets jobs.** Only users with `profiles.ai_mode = 'queue'`, set by `npx tsx scripts/set-ai-mode.ts <email> queue|off` (service role; `@example.test` emails need `--test`; prints `ok` only). Users cannot change the column.
+- **Enqueue** (`enqueueScoreFit` in `src/finder/ai-queue.ts`, called by the finder after every user's `refresh_matches`): the user's top 15 by `base_score` among passing, non-hidden, non-gone matches with no `ai_score` and no `score_fit` job yet (any status, so a done or failed posting is never re-queued), and never more than 15 queued or claimed jobs per user. The finder logs counts only.
+- **Worker routes are the one exception to "every route handler calls `getCurrentUser()`".** `POST /api/ai-jobs/claim` and `POST /api/ai-jobs/complete` are called by the owner's Claude cloud routine, not a user. Their auth is `Authorization: Bearer $AI_WORKER_TOKEN` (at least 32 characters, compared with `timingSafeEqual`). With the env var unset (or too short) both routes answer 404. The proxy lets `/api/ai-jobs/*` through without a session (`src/lib/public-paths.ts`), so those paths rely solely on the token. Errors are JSON codes only (`unauthorized`, `bad_request`, `not_found`, `not_claimed`, `server_error`).
+- **Claim** returns up to 10 jobs with the posting (title, company, locations, apply link, level, terms, pay) and the user's career stage, season and field labels/weights. Never a name, email, school or resume. Claims older than 2 hours can be claimed again. A claimed job whose posting is gone is marked `failed` at claim time.
+- **Complete** takes `{id, score 1-10 (integer), reason ≤ 200}` or `{id, error ≤ 500}`. A score sets the job `done` and writes `posting_matches.ai_score` and `reasons.ai_reason` (other reason keys kept; `refresh_matches` preserves both). An error sets it `failed`. Unknown id is 404; a job that is not `claimed` is 409.
+- **The routine** is a Claude cloud routine on the owner's plan, daily at 11:30 UTC (after the 10:17 finder). It claims up to 10 jobs, may read each posting's own apply page, judges fit 1-10 in one sentence, and completes the job. It never applies, never fetches intern-list.com or jobright.ai, and writes nowhere else.
+- **`AI_WORKER_TOKEN`** lives only in `src/lib/env.server.ts` (server-only), Vercel env and the routine. `scripts/check-bundle-secrets.mjs` fails on its name or value in the client bundle.
+- **Stage 2** (an API-backed provider) is out of this phase. It plugs in at the `// LLM-UPGRADE:` note in `src/lib/ai/types.ts`, reusing `ScoreFitJob` and `completeSchema`. `grep -ri anthropic src scripts package.json` hits only `LLM-UPGRADE` comments.
+
+### Task 1 result: can a cloud routine reach our backend?
+
+The spec's known risk, tested before anything depended on it. A one-off routine's `curl` to `pipeline-agent-peach.vercel.app` failed with `CONNECT tunnel failed, response 403` from the cloud sandbox proxy under the default network policy. The user chose to allow the host in the cloud environment's network settings (a user action), then re-test. Stage 2 sooner stays the fallback if that fails.
+
+### Builder calls and rulings
+
+- Branch `phase-4-scoring` was created in the shared checkout rather than a worktree (the previous branch was merged and clean; a worktree needs a fresh `npm ci` in the iCloud folder).
+- The guard test that keeps `src/lib/**` from importing the finder was narrowed to allow `src/lib/scoring` to import the finder's pure `classify/` modules only. Classify purity is convention only.
+- `claim_ai_jobs` over-claims, and the app-side cap requeues the extras instead of adding a migration now (see Open items).
+
+### Open items
+
+- **`claim_ai_jobs` over-claims.** Postgres may re-run its `id in (select ... limit ... for update skip locked)` subquery, so it can claim more rows than the limit. `claimJobs` keeps the first `limit` and puts the rest straight back to `queued`, so extra rows are briefly `claimed` and which ones are kept is arbitrary. Proposed fix (needs a migration and the user's OK): claim through a materialized CTE, and write `reasons` with `jsonb ||` so a complete cannot race `refresh_matches`' read-modify-write.
+- **Complete vs race.** `completeJob` writes the match before the status-guarded job update, and does not check `claimed_by`/`claimed_at`, so a racing or stale complete can write a score.
+- **Industry rule false positives:** `Healthcare` vs `Health Care` misses; `Gas` matches `Gaming`, `Store` matches `Storage`. A fix is a new migration.
+- **Remote matching is still US-only:** an `either`/`remote_only` user with non-US `work_countries` misses e.g. "Remote - UK".
+- **Experience-bank and description signals wait for Phase 6.** Only 1 posting has a description snippet today.
+- **Applied matches** still show Save/Hide; Hide on an applied match is a silent no-op.
+- **Bar form state** survives Remove (stale inputs and "Saved" status); `setCompanyRelation` and `setMatchState` give no feedback on failure.
 
 ## Phase 2b: onboarding UX (decided and built 2026-11-08)
 

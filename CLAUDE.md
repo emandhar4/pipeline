@@ -42,6 +42,9 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgr
 - Dashboard: pure helpers in `src/lib/dashboard/` (`today.ts`, `health.ts`), server-only `queries.ts`, panels in `src/app/(app)/dashboard/`
 - Finder: `src/finder/` (no `server-only`, no Next imports): `sources/` (one adapter per ATS plus `simplify.ts`), `classify/` (level, location, fields, terms, dedupe keys), `resolve.ts` (find a company's ATS), `keep.ts`, `http.ts` (polite fetch), `store.ts` (Supabase), `run.ts`. CLI: `npx tsx scripts/finder.ts [--only simplify,greenhouse:<token>] [--dry-run] [--resolve-limit 150] [--trigger manual|schedule]` (needs `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SECRET_KEY`). Workflow: `.github/workflows/finder.yml` (daily at 10:17 UTC, plus manual `workflow_dispatch` with inputs `only` and `resolve_limit`). Company watchlist helpers: `src/lib/companies/`; Profile company form and `/coverage` run report under `src/app/(app)/`. Matching is the SQL function `refresh_matches`.
 - Finder test rows in global tables use these prefixes: `postings.dedupe_key` `test:`, `posting_sources.source` `test`, `finder_runs.trigger` `test`, companies named `Test- ...`. Tests clean up their own rows only.
+- AI queue (stage 1): `src/finder/ai-queue.ts` (`enqueueScoreFit`, run by the finder for `ai_mode = 'queue'` users), pure `src/lib/ai/types.ts` (`ScoreFitJob`, `claimSchema`, `completeSchema`), server-only `src/lib/ai/worker.ts` (token check, claim, complete), routes `src/app/api/ai-jobs/{claim,complete}/route.ts`. Set a user's mode with `npx tsx scripts/set-ai-mode.ts <email> queue|off [--test]` (prints `ok` only). `AI_WORKER_TOKEN` (optional, at least 32 chars) is server-only.
+- Scoring: `src/lib/scoring/` (pure `explain`, `types`, `bar`: parse and phrase the reasons and bar line that SQL `refresh_matches` writes; may import the finder's pure `classify/` only). Rules and score table: `DECISIONS.md` "Phase 4".
+- AI lib: `src/lib/ai/` (`types.ts` pure, `worker.ts` server-only). `src/lib/public-paths.ts` lists the paths the proxy lets through without a session (`/login`, `/auth/*`, `/api/ai-jobs/*`).
 - Test-user cleanup: `npx tsx scripts/cleanup-test-users.ts [--dry-run]` (only `@example.test`)
 
 ## Working rules
@@ -49,4 +52,4 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel; hosted Supabase (Postgr
 - Use Context7 for current library docs before writing code against a library (Next 16, Supabase, Vitest, Tailwind 4 differ from older versions).
 - Read `node_modules/next/dist/docs/` for Next.js specifics (see `AGENTS.md`).
 - Keep `DECISIONS.md` and this file up to date.
-- Every route handler and server action must call `getCurrentUser()` itself; never rely on the layout or the proxy alone.
+- Every route handler and server action must call `getCurrentUser()` itself; never rely on the layout or the proxy alone. The one exception is the AI worker routes (`src/app/api/ai-jobs/claim`, `.../complete`): their caller is a worker, and `Authorization: Bearer $AI_WORKER_TOKEN` is their auth (404 when the env var is unset).

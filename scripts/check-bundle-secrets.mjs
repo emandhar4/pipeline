@@ -1,5 +1,5 @@
 // Fails (exit 1) if any file under .next/static contains the literal value of
-// SUPABASE_SECRET_KEY (when set) or the string "SUPABASE_SECRET_KEY".
+// SUPABASE_SECRET_KEY or AI_WORKER_TOKEN (when set) or either name.
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -9,9 +9,12 @@ if (!existsSync(root)) {
   process.exit(1);
 }
 
-const needles = ['SUPABASE_SECRET_KEY'];
-const secret = process.env.SUPABASE_SECRET_KEY;
-if (secret) needles.push(secret);
+const NAMES = ['SUPABASE_SECRET_KEY', 'AI_WORKER_TOKEN'];
+const needles = [...NAMES];
+for (const name of NAMES) {
+  const secret = process.env[name];
+  if (secret) needles.push(secret);
+}
 
 function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -29,7 +32,7 @@ for (const file of walk(root)) {
   for (const needle of needles) {
     if (content.includes(needle)) {
       // Never print the secret value itself.
-      leaks.push(`${file} (${needle === 'SUPABASE_SECRET_KEY' ? 'name' : 'value'})`);
+      leaks.push(`${file} (${NAMES.includes(needle) ? `name ${needle}` : 'a secret value'})`);
     }
   }
 }
