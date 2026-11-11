@@ -42,6 +42,8 @@ export const FIELD_KEYWORDS: Record<string, string[]> = {
   consulting: [
     'consulting', 'consultant', 'client engagement', 'case interview', 'strategy consulting',
     'due diligence', 'client deliverables', 'market sizing', 'management consulting',
+    'discovery interviews', 'maturity model', 'benchmarking', 'client-facing',
+    'digital transformation', 'executive communication',
   ],
   'creatives-and-design': [
     'graphic design', 'adobe', 'photoshop', 'illustrator', 'figma', 'ui/ux', 'typography',
