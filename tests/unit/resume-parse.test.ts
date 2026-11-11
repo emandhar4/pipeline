@@ -107,6 +107,26 @@ describe('suggestFields', () => {
     );
     expect(fields[1].matched).toEqual(expect.arrayContaining(['sql', 'tableau', 'excel', 'dashboard']));
   });
+  it('keeps consulting and business analyst when a tool-heavy data field leads', () => {
+    // Fictional: a consulting intern whose skills line is full of data tools.
+    const text = [
+      'Technology Consulting Intern, Example Advisory Group',
+      'Led weekly discovery interviews with client executives to define a four-level maturity model.',
+      'Benchmarking of operating costs across 40 firms, presented as KPI dashboards to stakeholders.',
+      'Requirements gathering and process improvement for a finance team.',
+      'Skills: Executive Communication, SQL, Tableau, Power BI, Excel, pandas, R, statistics, data analysis',
+    ].join('\n');
+    const fields = suggestFields(text, FIELD_KEYWORDS, ORDER);
+    expect(fields.map((f) => [f.slug, f.weight])).toEqual([
+      ['data-analysis', 'primary'],
+      ['consulting', 'secondary'],
+      ['business-analyst', 'secondary'],
+    ]);
+  });
+  it('drops secondaries with fewer than 3 hits', () => {
+    const kw = { a: ['a1', 'a2', 'a3', 'a4'], b: ['b1', 'b2'] };
+    expect(suggestFields('a1 a2 a3 a4 b1 b2', kw, ['a', 'b']).map((f) => f.slug)).toEqual(['a']);
+  });
   it('returns nothing without a primary', () => {
     expect(suggestFields('Proficient in Excel', FIELD_KEYWORDS, ORDER)).toEqual([]);
   });

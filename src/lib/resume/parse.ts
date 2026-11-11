@@ -137,7 +137,9 @@ function hasKeyword(text: string, keyword: string): boolean {
 
 /**
  * Field suggestions by distinct keyword hits. Primary: the top category if it has 3+.
- * Secondary: up to 2 next with 2+ and at least half the primary score. Ties follow `order`.
+ * Secondary: up to 2 next with 3+. A flat floor, not a share of the primary score, so a
+ * tool-heavy skills line in one field does not hide real experience in another.
+ * Ties follow `order`.
  */
 export function suggestFields(
   text: string,
@@ -155,10 +157,7 @@ export function suggestFields(
 
   const [top, ...rest] = scored;
   if (!top || top.matched.length < 3) return [];
-  const primaryScore = top.matched.length;
-  const secondary = rest
-    .filter((s) => s.matched.length >= 2 && s.matched.length * 2 >= primaryScore)
-    .slice(0, 2);
+  const secondary = rest.filter((s) => s.matched.length >= 3).slice(0, 2);
   return [
     { slug: top.slug, weight: 'primary', matched: top.matched },
     ...secondary.map((s) => ({ slug: s.slug, weight: 'secondary' as const, matched: s.matched })),
